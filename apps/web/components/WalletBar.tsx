@@ -1,17 +1,22 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { mezoChainId, mezoExplorerUrl } from "@/lib/mezo";
 
 export function WalletBar() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const { address, isConnected } = useAccount();
   const { connect, isPending: isConnecting, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain();
 
-  const wrongNetwork = isConnected && chainId !== mezoChainId;
+  const showConnected = mounted && isConnected;
+  const wrongNetwork = showConnected && chainId !== mezoChainId;
 
   return (
     <div
@@ -29,7 +34,7 @@ export function WalletBar() {
       <div style={{ display: "grid", gap: 4 }}>
         <div style={{ fontWeight: 650 }}>Wallet</div>
         <div style={{ color: "var(--muted)", fontSize: 13 }}>
-          {isConnected ? (
+          {showConnected ? (
             <>
               {address}{" "}
               {mezoExplorerUrl ? (
@@ -61,7 +66,7 @@ export function WalletBar() {
           </button>
         ) : null}
 
-        {isConnected ? (
+        {showConnected ? (
           <button
             onClick={() => disconnect()}
             style={{
@@ -86,7 +91,7 @@ export function WalletBar() {
               color: "var(--text)"
             }}
           >
-            {isConnecting ? "Connecting…" : "Connect"}
+            {mounted ? (isConnecting ? "Connecting…" : "Connect") : "Connect"}
           </button>
         )}
       </div>
