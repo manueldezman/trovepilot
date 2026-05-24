@@ -92,7 +92,28 @@ export const vaultAbi = [
       }
     ]
   },
-  { type: "function", name: "executeCollateralDefense", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  {
+    type: "function",
+    name: "previewCollateralDefense",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      { name: "repayAmount", type: "uint256" },
+      { name: "oldICR", type: "uint256" },
+      { name: "newNICR", type: "uint256" }
+    ]
+  },
+  {
+    type: "function",
+    name: "executeCollateralDefense",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "signature", type: "bytes" },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: []
+  },
   { type: "function", name: "executePremiumResponse", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "executeDiscountResponse", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "event", name: "ReserveDeposited", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: true, name: "token", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },

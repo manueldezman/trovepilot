@@ -11,6 +11,7 @@ export function useSimulatedBtcPrice() {
     enabled: Boolean(addresses.mockMarketOracle),
     refetchInterval: 7_000,
     queryFn: async () => {
+      if (!addresses.mockMarketOracle) throw new Error("Missing oracle address");
       const btcPrice = await publicClient.readContract({
         address: addresses.mockMarketOracle,
         abi: mockMarketOracleAbi,
@@ -27,6 +28,7 @@ export function useSimulatedMusdPrice() {
     enabled: Boolean(addresses.mockMarketOracle),
     refetchInterval: 7_000,
     queryFn: async () => {
+      if (!addresses.mockMarketOracle) throw new Error("Missing oracle address");
       const musdPrice = await publicClient.readContract({
         address: addresses.mockMarketOracle,
         abi: mockMarketOracleAbi,

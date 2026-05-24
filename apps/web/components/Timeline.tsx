@@ -5,7 +5,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 
 export function Timeline() {
   const { address } = useAccount();
-  const { events, isLoading, error } = useTimeline(address);
+  const { data: events = [], isLoading, error } = useTimeline(address);
 
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>

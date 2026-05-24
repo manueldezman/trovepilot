@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { formatUnits } from "viem";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 
@@ -23,7 +24,7 @@ export function useRules() {
   const { writeContractAsync } = useWriteContract();
 
   const { data } = useReadContract({
-    address: addresses.vault,
+    address: addresses.vault ?? undefined,
     abi: vaultAbi,
     functionName: "getRules",
     args: address ? [address] : undefined,
@@ -34,10 +35,10 @@ export function useRules() {
     if (!data) return null;
     const r = data as any;
     return {
-      minICR: (Number(r.minICR) ? r.minICR : 0n).toString(),
-      repayBps: r.repayBps?.toString?.() ?? "0",
-      premiumThreshold: (Number(r.premiumThreshold) ? r.premiumThreshold : 0n).toString(),
-      discountThreshold: (Number(r.discountThreshold) ? r.discountThreshold : 0n).toString(),
+      minICR: formatUnits((r.minICR ?? 0n) as bigint, 18),
+      repayBps: (r.repayBps ?? 0n).toString(),
+      premiumThreshold: formatUnits((r.premiumThreshold ?? 0n) as bigint, 18),
+      discountThreshold: formatUnits((r.discountThreshold ?? 0n) as bigint, 18),
       maxReserveUseBps: r.maxReserveUseBps?.toString?.() ?? "0",
       collateralDefenseEnabled: Boolean(r.collateralDefenseEnabled),
       premiumModeEnabled: Boolean(r.premiumModeEnabled),

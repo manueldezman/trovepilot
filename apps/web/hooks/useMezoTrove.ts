@@ -4,11 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { type Address, formatUnits } from "viem";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO } from "@/lib/mezo";
-import { mezoTroveManagerAbi, mezoPriceFeedAbi } from "@/lib/mezoAbis";
+import { mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { useSimulatedBtcPrice } from "@/hooks/useSimulatedPrices";
 
 export function useMezoTrove(user?: Address) {
-  const { btcPrice } = useSimulatedBtcPrice();
+  const { data: sim } = useSimulatedBtcPrice();
+  const btcPrice = sim?.btcPrice;
 
   return useQuery({
     queryKey: ["mezoTrove", user, btcPrice?.toString() ?? "none"],

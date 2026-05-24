@@ -13,6 +13,7 @@ export function useVaultState(user?: Address) {
     enabled: Boolean(user && addresses.vault),
     queryFn: async () => {
       if (!user) throw new Error("Missing user");
+      if (!addresses.vault) throw new Error("Missing vault address");
 
       const [reserve, rules] = await Promise.all([
         publicClient.readContract({
@@ -24,8 +25,8 @@ export function useVaultState(user?: Address) {
         publicClient.readContract({ address: addresses.vault, abi: vaultAbi, functionName: "getRules", args: [user] })
       ]);
 
-      const rulesArr = rules as readonly unknown[];
-      const rulesSet = Boolean(rulesArr?.length);
+      const r = rules as any;
+      const rulesSet = Boolean(r && (r.minICR ?? 0n) > 0n);
 
       return {
         musdReserve: `${formatUnits(reserve as bigint, 18)} MUSD`,
