@@ -10,6 +10,7 @@ coverage
 artifacts
 cache
 typechain
+typechain-types
 
 # Env files (never commit secrets)
 .env
@@ -25,3 +26,6 @@ pnpm-debug.log*
 # OS/editor
 .DS_Store
 .vscode
+
+# TS build info
+*.tsbuildinfo

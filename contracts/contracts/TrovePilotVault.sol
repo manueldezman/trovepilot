@@ -15,6 +15,27 @@ interface ITroveManager {
     function getTroveStatus(address borrower) external view returns (uint256);
 }
 
+interface ISortedTroves {
+    function findInsertPosition(uint256 _NICR, address _prevId, address _nextId) external view returns (address, address);
+}
+
+interface IHintHelpers {
+    function getApproxHint(uint256 _CR, uint256 _numTrials, uint256 _inputRandomSeed) external view returns (address, uint256, uint256);
+    function computeNominalCR(uint256 _coll, uint256 _debt) external pure returns (uint256);
+}
+
+interface IBorrowerOperationsSignatures {
+    function getNonce(address user) external view returns (uint256);
+    function repayMUSDWithSignature(
+        uint256 _amount,
+        address _upperHint,
+        address _lowerHint,
+        address _borrower,
+        bytes memory _signature,
+        uint256 _deadline
+    ) external;
+}
+
 interface IMockMarketOracle {
     function getBTCPrice() external view returns (uint256);
     function getMUSDPrice() external view returns (uint256);
@@ -46,20 +67,35 @@ contract TrovePilotVault {
     address public immutable troveManager;
     address public immutable borrowerOperations;
     address public immutable hintHelpers;
+    address public immutable sortedTroves;
+    address public immutable borrowerOperationsSignatures;
     IMockMarketOracle public immutable marketOracle;
 
     constructor(
         address _musdToken,
         address _troveManager,
         address _borrowerOperations,
+        address _borrowerOperationsSignatures,
         address _hintHelpers,
+        address _sortedTroves,
         address _marketOracle
     ) {
-        require(_musdToken != address(0) && _troveManager != address(0) && _borrowerOperations != address(0) && _marketOracle != address(0), "BAD_ADDR");
+        require(
+            _musdToken != address(0) &&
+                _troveManager != address(0) &&
+                _borrowerOperations != address(0) &&
+                _borrowerOperationsSignatures != address(0) &&
+                _hintHelpers != address(0) &&
+                _sortedTroves != address(0) &&
+                _marketOracle != address(0),
+            "BAD_ADDR"
+        );
         musdToken = _musdToken;
         troveManager = _troveManager;
         borrowerOperations = _borrowerOperations;
+        borrowerOperationsSignatures = _borrowerOperationsSignatures;
         hintHelpers = _hintHelpers;
+        sortedTroves = _sortedTroves;
         marketOracle = IMockMarketOracle(_marketOracle);
     }
 
@@ -93,7 +129,39 @@ contract TrovePilotVault {
         return rules[user];
     }
 
-    function executeCollateralDefense() external {
+    function previewCollateralDefense(address user) external view returns (uint256 repayAmount, uint256 oldICR, uint256 newNICR) {
+        StrategyRules memory r = rules[user];
+        if (!r.collateralDefenseEnabled) return (0, 0, 0);
+
+        uint256 btcPrice = marketOracle.getBTCPrice();
+        if (btcPrice == 0) return (0, 0, 0);
+
+        ITroveManager tm = ITroveManager(troveManager);
+        oldICR = tm.getCurrentICR(user, btcPrice);
+        if (oldICR >= r.minICR) return (0, oldICR, 0);
+
+        uint256 debt = tm.getTroveDebt(user);
+        if (debt == 0) return (0, oldICR, 0);
+
+        uint256 reserve = reserves[user][musdToken];
+        if (reserve == 0) return (0, oldICR, 0);
+
+        uint256 targetRepay = (debt * r.repayBps) / 10_000;
+        uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
+        repayAmount = targetRepay;
+        if (repayAmount > maxUse) repayAmount = maxUse;
+        if (repayAmount > reserve) repayAmount = reserve;
+
+        if (repayAmount == 0) return (0, oldICR, 0);
+
+        uint256 coll = tm.getTroveColl(user);
+        uint256 newDebt = debt - repayAmount;
+        if (newDebt == 0) return (0, oldICR, 0);
+
+        newNICR = IHintHelpers(hintHelpers).computeNominalCR(coll, newDebt);
+    }
+
+    function executeCollateralDefense(uint256 amount, bytes calldata signature, uint256 deadline) external {
         StrategyRules memory r = rules[msg.sender];
         require(r.collateralDefenseEnabled, "DISABLED");
 
@@ -112,22 +180,39 @@ contract TrovePilotVault {
 
         uint256 targetRepay = (debt * r.repayBps) / 10_000;
         uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
-        uint256 repayAmount = targetRepay;
-        if (repayAmount > maxUse) repayAmount = maxUse;
-        if (repayAmount > reserve) repayAmount = reserve;
-        require(repayAmount > 0, "ZERO_REPAY");
+        uint256 cap = targetRepay;
+        if (cap > maxUse) cap = maxUse;
+        if (cap > reserve) cap = reserve;
+        require(amount > 0 && amount <= cap, "BAD_AMOUNT");
 
         // Reserve accounting first.
-        reserves[msg.sender][musdToken] = reserve - repayAmount;
+        reserves[msg.sender][musdToken] = reserve - amount;
 
-        // Approve BorrowerOperations to pull MUSD from this vault.
-        require(IERC20(musdToken).approve(borrowerOperations, repayAmount), "APPROVE_FAIL");
+        (address upper, address lower) = _findRepayHints(msg.sender, debt, amount);
 
-        // NOTE: Real Mezo repay call is wired after ABI inspection.
-        // For now, we only emit the execution event with an unchanged ICR.
-        // Implementation will replace this with a BorrowerOperations repay/adjust call.
-        uint256 newICR = oldICR;
-        emit CollateralDefenseExecuted(msg.sender, repayAmount, oldICR, newICR);
+        // Real Mezo repayment using BorrowerOperationsSignatures. The user signs an authorization for `amount`,
+        // and this vault pays from its own MUSD balance (as the `_caller`).
+        IBorrowerOperationsSignatures(borrowerOperationsSignatures).repayMUSDWithSignature(
+            amount,
+            upper,
+            lower,
+            msg.sender,
+            signature,
+            deadline
+        );
+
+        uint256 newICR = tm.getCurrentICR(msg.sender, btcPrice);
+        emit CollateralDefenseExecuted(msg.sender, amount, oldICR, newICR);
+    }
+
+    function _findRepayHints(address borrower, uint256 currentDebt, uint256 repayAmount) internal view returns (address upper, address lower) {
+        uint256 coll = ITroveManager(troveManager).getTroveColl(borrower);
+        uint256 newDebt = currentDebt - repayAmount;
+        uint256 newNICR = IHintHelpers(hintHelpers).computeNominalCR(coll, newDebt);
+
+        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, borrower, repayAmount)));
+        (address approxHint, , ) = IHintHelpers(hintHelpers).getApproxHint(newNICR, 15, seed);
+        (upper, lower) = ISortedTroves(sortedTroves).findInsertPosition(newNICR, approxHint, approxHint);
     }
 
     function executePremiumResponse() external {
