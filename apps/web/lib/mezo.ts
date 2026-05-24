@@ -1,14 +1,19 @@
 import { type Address } from "viem";
 
-function requiredEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var ${name}. Copy apps/web/.env.example to apps/web/.env.local and fill it.`);
-  return v;
+function requiredEnv(name: string, value: string | undefined): string {
+  if (!value) throw new Error(`Missing env var ${name}. Copy apps/web/.env.example to apps/web/.env.local and fill it.`);
+  return value;
 }
 
-export const mezoChainId = Number(requiredEnv("NEXT_PUBLIC_MEZO_CHAIN_ID"));
-export const mezoRpcUrl = requiredEnv("NEXT_PUBLIC_MEZO_RPC_URL");
-export const mezoExplorerUrl = requiredEnv("NEXT_PUBLIC_MEZO_EXPLORER_URL");
+// NOTE: Must access env vars by static property name so Next can inline them into client bundles.
+export const mezoChainId = Number(
+  requiredEnv("NEXT_PUBLIC_MEZO_CHAIN_ID", process.env.NEXT_PUBLIC_MEZO_CHAIN_ID)
+);
+export const mezoRpcUrl = requiredEnv("NEXT_PUBLIC_MEZO_RPC_URL", process.env.NEXT_PUBLIC_MEZO_RPC_URL);
+export const mezoExplorerUrl = requiredEnv(
+  "NEXT_PUBLIC_MEZO_EXPLORER_URL",
+  process.env.NEXT_PUBLIC_MEZO_EXPLORER_URL
+);
 
 export const MEZO: Record<string, Address> = {
   borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
