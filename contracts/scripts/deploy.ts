@@ -11,6 +11,11 @@ const MEZO = {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
+  if (!deployer) {
+    throw new Error(
+      "No deployer signer available. Check contracts/.env MEZO_PRIVATE_KEY (must be 64 hex chars, with or without 0x)."
+    );
+  }
   console.log("deployer=", await deployer.getAddress());
 
   const Oracle = await ethers.getContractFactory("MockMarketOracle");
