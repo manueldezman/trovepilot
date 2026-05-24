@@ -19,3 +19,17 @@ export const mezoPriceFeedAbi = [{ type: "function", name: "fetchPrice", stateMu
 export const mezoBorrowerOperationsSignaturesAbi = [
   { type: "function", name: "getNonce", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] }
 ] as const;
+
+export const mezoBorrowerOperationsAbi = [
+  {
+    type: "function",
+    name: "openTrove",
+    stateMutability: "payable",
+    inputs: [
+      { name: "_debtAmount", type: "uint256" },
+      { name: "_upperHint", type: "address" },
+      { name: "_lowerHint", type: "address" }
+    ],
+    outputs: []
+  }
+] as const;

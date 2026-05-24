@@ -3,6 +3,7 @@ import { WalletBar } from "@/components/WalletBar";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/trove", label: "Open Trove" },
   { href: "/rules", label: "Strategy Rules" },
   { href: "/sim", label: "Simulation Lab" },
   { href: "/timeline", label: "Execution Timeline" }
