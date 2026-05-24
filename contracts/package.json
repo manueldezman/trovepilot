@@ -1,0 +1,23 @@
+{
+  "name": "contracts",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:mezo": "hardhat run scripts/deploy.ts --network mezoTestnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "typechain": "^8.3.2"
+  },
+  "dependencies": {
+    "@mezo-org/musd-contracts": "1.1.0"
+  }
+}
