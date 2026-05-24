@@ -1,0 +1,41 @@
+"use client";
+
+import { useAccount } from "wagmi";
+import { useVaultState } from "@/hooks/useVaultState";
+import { DepositWithdraw } from "@/components/DepositWithdraw";
+
+export function VaultOverview() {
+  const { address } = useAccount();
+  const { data, isLoading, error } = useVaultState(address);
+
+  return (
+    <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>TrovePilot Vault</h2>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>{isLoading ? "Loading…" : null}</div>
+      </div>
+
+      {!address ? <p style={{ color: "var(--muted)" }}>Connect a wallet to load your vault state.</p> : null}
+      {error ? <p style={{ color: "#fda4af" }}>{error.message}</p> : null}
+
+      {data ? (
+        <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+          <Row label="MUSD reserve" value={data.musdReserve} />
+          <Row label="Rules set" value={data.rulesSet ? "Yes" : "No"} />
+          <DepositWithdraw />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 14 }}>
+      <div style={{ color: "var(--muted)" }}>{label}</div>
+      <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
