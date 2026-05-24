@@ -1,0 +1,16 @@
+{
+  "name": "trovepilot",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "contracts"
+  ],
+  "scripts": {
+    "web:dev": "npm -w apps/web run dev",
+    "web:build": "npm -w apps/web run build",
+    "web:start": "npm -w apps/web run start",
+    "contracts:compile": "npm -w contracts run compile",
+    "contracts:test": "npm -w contracts run test",
+    "contracts:deploy:mezo": "npm -w contracts run deploy:mezo"
+  }
+}
