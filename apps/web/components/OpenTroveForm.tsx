@@ -11,6 +11,7 @@ import { useWriteContract } from "wagmi";
 import { MEZO, mezoExplorerUrl, mezoChainId } from "@/lib/mezo";
 import { useChainId } from "wagmi";
 import { mezoBorrowerOperationsAbi } from "@/lib/mezoAbis";
+import { publicClient } from "@/lib/wagmi";
 
 const GAS_COMP = 200n * 10n ** 18n;
 const MIN_MINTED = 2000n * 10n ** 18n;
@@ -137,12 +138,18 @@ export function OpenTroveForm() {
     if (amt <= 0n) return setActionError("No mint headroom for selected ICR");
     if (amt < MIN_MINTED) return setActionError("Minimum mint increment is 2000 MUSD");
     try {
-      const hash = await writeContractAsync({
+      const sim = await publicClient.simulateContract({
+        account: address,
         address: MEZO.borrowerOperations,
         abi: mezoBorrowerOperationsAbi,
         functionName: "withdrawMUSD",
         args: [amt, "0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000"]
       });
+
+      const hash = await writeContractAsync({
+        ...sim.request,
+        gas: sim.request.gas
+      } as any);
       setActionTx(hash);
     } catch (e) {
       setActionError((e as Error).message);
