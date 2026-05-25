@@ -105,17 +105,7 @@ export function IcrHealthCard() {
             </span>
           </div>
 
-          {simIcr ? (
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>
-              Simulated ICR: <span style={{ fontFamily: "var(--mono)" }}>{formatUnits(simIcr, 18)}</span>
-            </div>
-          ) : null}
-
-          {protocolIcr && simIcr ? (
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>
-              Protocol ICR: <span style={{ fontFamily: "var(--mono)" }}>{formatUnits(protocolIcr, 18)}</span>
-            </div>
-          ) : null}
+          {/* Keep the demo focused: show only one ICR number above. */}
         </div>
 
         <div
