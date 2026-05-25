@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAccount, useChainId, useWalletClient, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useSignMessage, useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
-import { MEZO } from "@/lib/mezo";
+import { MEZO, mezoChainId } from "@/lib/mezo";
 import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
 import { computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
 
@@ -13,7 +13,7 @@ export function useExecuteActions() {
   const { writeContractAsync } = useWriteContract();
   const { address } = useAccount();
   const chainId = useChainId();
-  const { data: walletClient } = useWalletClient();
+  const { signMessageAsync } = useSignMessage();
   const [error, setError] = useState<Error | null>(null);
 
   const withVault = () => {
@@ -25,7 +25,7 @@ export function useExecuteActions() {
     setError(null);
     try {
       if (!address) throw new Error("Connect a wallet");
-      if (!walletClient) throw new Error("Wallet client unavailable");
+      if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
 
       const [preview, nonce] = await Promise.all([
         publicClient.readContract({ address: withVault(), abi: vaultAbi, functionName: "previewCollateralDefense", args: [address] }),
@@ -50,10 +50,9 @@ export function useExecuteActions() {
         verifyingContract: MEZO.borrowerOperationsSignatures
       });
 
-      const signature = (await walletClient.request({
-        method: "eth_sign",
-        params: [address, digest]
-      })) as `0x${string}`;
+      // BorrowerOperationsSignatures expects a signature over the EIP-712 digest, but it verifies via ECDSA.recover.
+      // MetaMask can sign an arbitrary digest via personal_sign/signMessage.
+      const signature = (await signMessageAsync({ message: { raw: digest } })) as `0x${string}`;
 
       await writeContractAsync({
         address: withVault(),
@@ -65,7 +64,7 @@ export function useExecuteActions() {
       setError(e as Error);
       throw e;
     }
-  }, [writeContractAsync]);
+  }, [address, chainId, signMessageAsync, writeContractAsync]);
 
   const runPremium = useCallback(async () => {
     setError(null);
