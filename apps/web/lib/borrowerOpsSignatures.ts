@@ -5,13 +5,11 @@ const SIGNING_DOMAIN_HASH = keccak256(stringToBytes("BorrowerOperationsSignature
 const SIGNATURE_VERSION_HASH = keccak256(stringToBytes("1"));
 
 const REPAY_MUSD_TYPEHASH = keccak256(
-  stringToBytes("RepayMUSD(uint256 amount,address upperHint,address lowerHint,address borrower,uint256 nonce,uint256 deadline)")
+  stringToBytes("RepayMUSD(uint256 amount,address borrower,uint256 nonce,uint256 deadline)")
 );
 
 export function computeRepayMusdDigest(args: {
   amount: bigint;
-  upperHint: Address;
-  lowerHint: Address;
   borrower: Address;
   nonce: bigint;
   deadline: bigint;
@@ -31,10 +29,7 @@ export function computeRepayMusdDigest(args: {
     )
   );
 
-  const data = encodeAbiParameters(
-    [{ type: "uint256" }, { type: "address" }, { type: "address" }, { type: "address" }],
-    [args.amount, args.upperHint, args.lowerHint, args.borrower]
-  );
+  const data = encodeAbiParameters([{ type: "uint256" }, { type: "address" }], [args.amount, args.borrower]);
 
   const structHash = keccak256(concatHex([REPAY_MUSD_TYPEHASH, data, pad(toHex(args.nonce), { size: 32 }), pad(toHex(args.deadline), { size: 32 })]));
 

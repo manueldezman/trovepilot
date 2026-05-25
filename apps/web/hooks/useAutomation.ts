@@ -6,7 +6,7 @@ import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
-import { mezoBorrowerOperationsSignaturesAbi, mezoHintHelpersAbi, mezoSortedTrovesAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
+import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -152,38 +152,6 @@ export function useAutomation() {
 
       const preview = await previewBtcDown();
       if (preview.triggered && preview.repayAmount > 0n) {
-        // Repay requires valid hints. The signature contract may include the hints in the signed payload,
-        // so we compute them deterministically the same way the vault does.
-        const [coll, debt] = (await Promise.all([
-          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [address] }) as Promise<bigint>,
-          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [address] }) as Promise<bigint>
-        ])) as [bigint, bigint];
-
-        const newDebt = debt > preview.repayAmount ? debt - preview.repayAmount : 0n;
-        const nicr = (await publicClient.readContract({
-          address: MEZO.hintHelpers,
-          abi: mezoHintHelpersAbi,
-          functionName: "computeNominalCR",
-          args: [coll, newDebt]
-        })) as bigint;
-
-        const approx = (await publicClient.readContract({
-          address: MEZO.hintHelpers,
-          abi: mezoHintHelpersAbi,
-          functionName: "getApproxHint",
-          args: [nicr, 15n, 42n]
-        })) as any;
-
-        const approxAddr = (approx?.hintAddress ?? approx?.[0]) as `0x${string}`;
-        const pos = (await publicClient.readContract({
-          address: MEZO.sortedTroves,
-          abi: mezoSortedTrovesAbi,
-          functionName: "findInsertPosition",
-          args: [nicr, approxAddr, approxAddr]
-        })) as any;
-        const upperHint = (pos?.prevId ?? pos?.[0]) as `0x${string}`;
-        const lowerHint = (pos?.nextId ?? pos?.[1]) as `0x${string}`;
-
         const nonce = await nonceFor();
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
         const signature = (await signTypedDataAsync({
@@ -191,15 +159,13 @@ export function useAutomation() {
           types: {
             RepayMUSD: [
               { name: "amount", type: "uint256" },
-              { name: "upperHint", type: "address" },
-              { name: "lowerHint", type: "address" },
               { name: "borrower", type: "address" },
               { name: "nonce", type: "uint256" },
               { name: "deadline", type: "uint256" }
             ]
           },
           primaryType: "RepayMUSD",
-          message: { amount: preview.repayAmount, upperHint, lowerHint, borrower: address, nonce, deadline }
+          message: { amount: preview.repayAmount, borrower: address, nonce, deadline }
         })) as `0x${string}`;
 
         // Preflight simulation to surface revert reasons (instead of MetaMask "network fee" generic errors).
