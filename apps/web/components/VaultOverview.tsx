@@ -5,7 +5,7 @@ import { useVaultState } from "@/hooks/useVaultState";
 import { DepositWithdraw } from "@/components/DepositWithdraw";
 import { useMounted } from "@/hooks/useMounted";
 
-export function VaultOverview() {
+export function VaultOverview({ showActions = false }: { showActions?: boolean }) {
   const mounted = useMounted();
   const { address } = useAccount();
   const safeAddress = mounted ? address : undefined;
@@ -28,7 +28,7 @@ export function VaultOverview() {
           <Row label="Opportunity reserve" value={data.opportunityReserve} />
           <Row label="MUSD acquired (sim)" value={data.opportunityMusdAcquired} />
           <Row label="Rules set" value={data.rulesSet ? "Yes" : "No"} />
-          <DepositWithdraw />
+          {showActions ? <DepositWithdraw /> : null}
         </div>
       ) : null}
     </section>

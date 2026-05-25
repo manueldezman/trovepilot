@@ -7,6 +7,7 @@ const items = [
   { href: "/", label: "Dashboard", icon: DashboardIcon },
   { href: "/trove", label: "Trove", icon: TroveIcon },
   { href: "/rules", label: "Rules", icon: RulesIcon },
+  { href: "/vault", label: "Vault", icon: VaultIcon },
   { href: "/sim", label: "Simulation", icon: SimIcon },
   { href: "/timeline", label: "Timeline", icon: TimelineIcon }
 ];
@@ -131,6 +132,17 @@ function SimIcon() {
       <path d="M4 19V5" />
       <path d="M4 19h16" />
       <path d="M7 15l4-4 3 3 5-6" />
+    </svg>
+  );
+}
+
+function VaultIcon() {
+  return (
+    <svg {...svgBase()}>
+      <path d="M3 7h18" />
+      <path d="M5 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2" />
+      <path d="M6 7v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
+      <path d="M9 12h6" />
     </svg>
   );
 }
