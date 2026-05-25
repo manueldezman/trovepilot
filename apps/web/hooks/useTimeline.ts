@@ -41,6 +41,14 @@ function formatDetail(eventName: string, args: any): string {
     case "ReserveWithdrawn": {
       return [`Amount: ${fmt18(a.amount)} MUSD`].join("\n");
     }
+    case "ReserveAllocated": {
+      return [
+        `MUSD in: ${fmt18(a.musdIn)} MUSD`,
+        `Stability (MUSD): +${fmt18(a.musdKept)} MUSD`,
+        `Opportunity (USDC): +${fmt18(a.usdcAdded)} USDC`,
+        `MUSD price: ${fmt18(a.musdPrice)}`
+      ].join("\n");
+    }
     case "RulesUpdated": {
       return "Rules saved onchain.";
     }

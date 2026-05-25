@@ -169,6 +169,18 @@ export const vaultAbi = [
   // Events
   { type: "event", name: "ReserveDeposited", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
   { type: "event", name: "ReserveWithdrawn", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
+  {
+    type: "event",
+    name: "ReserveAllocated",
+    inputs: [
+      { indexed: true, name: "user", type: "address" },
+      { indexed: false, name: "musdIn", type: "uint256" },
+      { indexed: false, name: "musdKept", type: "uint256" },
+      { indexed: false, name: "usdcAdded", type: "uint256" },
+      { indexed: false, name: "musdPrice", type: "uint256" }
+    ],
+    anonymous: false
+  },
   { type: "event", name: "RulesUpdated", inputs: [{ indexed: true, name: "user", type: "address" }], anonymous: false },
   { type: "event", name: "SimulatedMarketUpdated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "btcPrice", type: "uint256" }, { indexed: false, name: "musdPrice", type: "uint256" }], anonymous: false },
   {
@@ -198,4 +210,3 @@ export const vaultAbi = [
   { type: "event", name: "PremiumRotated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "musdPrice", type: "uint256" }, { indexed: false, name: "sellMusd", type: "uint256" }, { indexed: false, name: "estUsdcOut", type: "uint256" }], anonymous: false },
   { type: "event", name: "DiscountRotated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "musdPrice", type: "uint256" }, { indexed: false, name: "spendUsdc", type: "uint256" }, { indexed: false, name: "estMusdOut", type: "uint256" }], anonymous: false }
 ] as const;
-

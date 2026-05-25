@@ -3,6 +3,7 @@ import { TroveOverview } from "@/components/TroveOverview";
 import { VaultOverview } from "@/components/VaultOverview";
 import { HeroHeader } from "@/components/HeroHeader";
 import { LiquidCoverageCard } from "@/components/LiquidCoverageCard";
+import { ReserveCompositionCard } from "@/components/ReserveCompositionCard";
 
 export default function HomePage() {
   return (
@@ -13,6 +14,7 @@ export default function HomePage() {
         <div style={{ display: "grid", gap: 14 }}>
           <VaultOverview />
           <LiquidCoverageCard />
+          <ReserveCompositionCard />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
