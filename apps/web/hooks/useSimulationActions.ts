@@ -5,6 +5,7 @@ import { parseUnits } from "viem";
 import { useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
 import { mockMarketOracleAbi } from "@/lib/trovePilotAbis";
+import { publicClient } from "@/lib/wagmi";
 
 export function useSimulationActions() {
   const { writeContractAsync } = useWriteContract();
@@ -18,11 +19,17 @@ export function useSimulationActions() {
   const setBtcDrop15 = useCallback(async () => {
     setError(null);
     try {
+      const current = (await publicClient.readContract({
+        address: withAddr(),
+        abi: mockMarketOracleAbi,
+        functionName: "getBTCPrice"
+      })) as bigint;
+      const next = (current * 85n) / 100n;
       await writeContractAsync({
         address: withAddr(),
         abi: mockMarketOracleAbi,
         functionName: "setBTCPrice",
-        args: [parseUnits("85000", 18)]
+        args: [next]
       });
     } catch (e) {
       setError(e as Error);
