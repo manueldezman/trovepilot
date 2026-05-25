@@ -9,30 +9,14 @@ export default function HomePage() {
   return (
     <main style={{ display: "grid", gap: 14 }}>
       <HeroHeader />
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-          gap: 14,
-          alignItems: "start"
-        }}
-      >
+      <div className="dashboardGrid">
         <IcrHealthCard />
-        <div style={{ display: "grid", gap: 14 }}>
-          <VaultOverview />
-          <LiquidCoverageCard />
-          <ReserveCompositionCard />
+        <VaultOverview />
+        <LiquidCoverageCard />
+        <ReserveCompositionCard />
+        <div className="span2">
+          <TroveOverview />
         </div>
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-          gap: 14,
-          alignItems: "start"
-        }}
-      >
-        <TroveOverview />
       </div>
     </main>
   );

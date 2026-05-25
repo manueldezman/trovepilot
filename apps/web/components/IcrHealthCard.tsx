@@ -75,7 +75,8 @@ export function IcrHealthCard() {
         borderRadius: 16,
         background: "var(--panel)",
         boxShadow: "var(--shadow2)",
-        height: "auto"
+        height: "100%",
+        minHeight: 164
       }}
     >
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
