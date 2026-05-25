@@ -5,12 +5,15 @@ import { parseUnits } from "viem";
 import { useRules } from "@/hooks/useRules";
 
 const defaults = {
-  safetyICR: "1.50",
+  targetICR: "1.60",
+  bandLowerICR: "1.58",
+  bandUpperICR: "1.62",
   premiumThreshold: "1.02",
   discountThreshold: "0.98",
-  maxReserveUseBps: "25",
-  safetyReservePct: 50,
-  safetyEnabled: true,
+  premiumSellPct: "20",
+  discountBuyPct: "20",
+  btcDownEnabled: true,
+  btcUpEnabled: true,
   premiumEnabled: true,
   discountEnabled: true
 };
@@ -23,34 +26,40 @@ export function RulesForm() {
   useEffect(() => {
     if (!rules) return;
     setForm({
-      safetyICR: rules.safetyICR,
+      targetICR: rules.targetICR,
+      bandLowerICR: rules.bandLowerICR,
+      bandUpperICR: rules.bandUpperICR,
       premiumThreshold: rules.premiumThreshold,
       discountThreshold: rules.discountThreshold,
-      maxReserveUseBps: rules.maxReserveUseBps,
-      safetyReservePct: clampPct(Number(rules.safetyReserveBps ?? "100")),
-      safetyEnabled: rules.safetyEnabled,
+      premiumSellPct: rules.premiumSellBps,
+      discountBuyPct: rules.discountBuyBps,
+      btcDownEnabled: rules.btcDownEnabled,
+      btcUpEnabled: rules.btcUpEnabled,
       premiumEnabled: rules.premiumEnabled,
       discountEnabled: rules.discountEnabled
     });
   }, [rules]);
 
-  const opportunityPct = useMemo(() => 100 - clampPct(form.safetyReservePct), [form.safetyReservePct]);
-
   const payload = useMemo(() => {
     setLocalError(null);
     try {
-      const maxReserveUseBps = percentToBps(form.maxReserveUseBps);
-      const safetyReserveBps = BigInt(clampPct(form.safetyReservePct)) * 100n;
-      const opportunityReserveBps = BigInt(100 - clampPct(form.safetyReservePct)) * 100n;
+      const premiumSellBps = percentToBps(form.premiumSellPct);
+      const discountBuyBps = percentToBps(form.discountBuyPct);
+
+      const targetICR = parseUnits(form.targetICR || "0", 18);
+      const bandLowerICR = parseUnits(form.bandLowerICR || "0", 18);
+      const bandUpperICR = parseUnits(form.bandUpperICR || "0", 18);
 
       return {
-        safetyICR: parseUnits(form.safetyICR || "0", 18),
+        targetICR,
+        bandLowerICR,
+        bandUpperICR,
         premiumThreshold: parseUnits(form.premiumThreshold || "0", 18),
         discountThreshold: parseUnits(form.discountThreshold || "0", 18),
-        maxReserveUseBps,
-        safetyReserveBps,
-        opportunityReserveBps,
-        safetyEnabled: form.safetyEnabled,
+        premiumSellBps,
+        discountBuyBps,
+        btcDownEnabled: form.btcDownEnabled,
+        btcUpEnabled: form.btcUpEnabled,
         premiumEnabled: form.premiumEnabled,
         discountEnabled: form.discountEnabled
       };
@@ -65,47 +74,20 @@ export function RulesForm() {
       <h2 style={{ marginTop: 0 }}>Strategy Rules</h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Safety ICR (e.g. 1.50)" value={form.safetyICR} onChange={(v) => setForm((f) => ({ ...f, safetyICR: v }))} />
-        <Field label="Premium trigger (e.g. 1.02)" value={form.premiumThreshold} onChange={(v) => setForm((f) => ({ ...f, premiumThreshold: v }))} />
-        <Field label="Discount trigger (e.g. 0.98)" value={form.discountThreshold} onChange={(v) => setForm((f) => ({ ...f, discountThreshold: v }))} />
-        <Field
-          label="Max safety reserve use % (e.g. 25)"
-          value={form.maxReserveUseBps}
-          numeric
-          onChange={(v) => setForm((f) => ({ ...f, maxReserveUseBps: v }))}
-        />
-      </div>
-
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-          <div style={{ fontWeight: 700 }}>Reserve split</div>
-          <div style={{ color: "var(--muted)", fontSize: 12 }}>
-            Safety <span style={{ fontFamily: "var(--mono)" }}>{clampPct(form.safetyReservePct)}%</span> · Opportunity{" "}
-            <span style={{ fontFamily: "var(--mono)" }}>{opportunityPct}%</span>
-          </div>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={clampPct(form.safetyReservePct)}
-            onChange={(e) => setForm((f) => ({ ...f, safetyReservePct: clampPct(Number(e.target.value)) }))}
-            style={{ width: "100%" }}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
-            <span>0%</span>
-            <span>50%</span>
-            <span>100%</span>
-          </div>
-        </div>
+        <Field label="Target ICR (default 1.60)" value={form.targetICR} onChange={(v) => setForm((f) => ({ ...f, targetICR: v }))} />
+        <Field label="Band lower (default 1.58)" value={form.bandLowerICR} onChange={(v) => setForm((f) => ({ ...f, bandLowerICR: v }))} />
+        <Field label="Band upper (default 1.62)" value={form.bandUpperICR} onChange={(v) => setForm((f) => ({ ...f, bandUpperICR: v }))} />
+        <Field label="Premium threshold (e.g. 1.02)" value={form.premiumThreshold} onChange={(v) => setForm((f) => ({ ...f, premiumThreshold: v }))} />
+        <Field label="Discount threshold (e.g. 0.98)" value={form.discountThreshold} onChange={(v) => setForm((f) => ({ ...f, discountThreshold: v }))} />
+        <Field label="Premium sell % (default 20)" value={form.premiumSellPct} numeric onChange={(v) => setForm((f) => ({ ...f, premiumSellPct: v }))} />
+        <Field label="Discount buy % (default 20)" value={form.discountBuyPct} numeric onChange={(v) => setForm((f) => ({ ...f, discountBuyPct: v }))} />
       </div>
 
       <div style={{ marginTop: 14, display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <Toggle label="Safety repay enabled" checked={form.safetyEnabled} onChange={(v) => setForm((f) => ({ ...f, safetyEnabled: v }))} />
-        <Toggle label="Premium enabled" checked={form.premiumEnabled} onChange={(v) => setForm((f) => ({ ...f, premiumEnabled: v }))} />
-        <Toggle label="Discount enabled" checked={form.discountEnabled} onChange={(v) => setForm((f) => ({ ...f, discountEnabled: v }))} />
+        <Toggle label="BTC down stabilization" checked={form.btcDownEnabled} onChange={(v) => setForm((f) => ({ ...f, btcDownEnabled: v }))} />
+        <Toggle label="BTC up refill" checked={form.btcUpEnabled} onChange={(v) => setForm((f) => ({ ...f, btcUpEnabled: v }))} />
+        <Toggle label="Premium rotation" checked={form.premiumEnabled} onChange={(v) => setForm((f) => ({ ...f, premiumEnabled: v }))} />
+        <Toggle label="Discount rotation" checked={form.discountEnabled} onChange={(v) => setForm((f) => ({ ...f, discountEnabled: v }))} />
       </div>
 
       <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
@@ -182,9 +164,3 @@ function percentToBps(v: string): bigint {
   return bps;
 }
 
-function clampPct(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  if (v < 0) return 0;
-  if (v > 100) return 100;
-  return Math.round(v);
-}

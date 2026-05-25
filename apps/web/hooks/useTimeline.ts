@@ -35,64 +35,42 @@ function fmtAddr(v: unknown): string {
 function formatDetail(eventName: string, args: any): string {
   const a = args ?? {};
   switch (eventName) {
-    case "RiskStateEvaluated": {
-      return [
-        `ICR: ${fmt18(a.icr)}x`,
-        `Safety triggered: ${a.safetyTriggered ? "Yes" : "No"}`
-      ].join("\n");
+    case "ReserveDeposited": {
+      return [`Amount: ${fmt18(a.amount)} MUSD`].join("\n");
     }
-    case "SafetyRepayExecuted": {
-      return [
-        `Repaid: ${fmt18(a.repayAmount)} MUSD`,
-        `ICR: ${fmt18(a.icrBefore)}x → ${fmt18(a.icrAfter)}x`
-      ].join("\n");
+    case "ReserveWithdrawn": {
+      return [`Amount: ${fmt18(a.amount)} MUSD`].join("\n");
     }
-    case "PremiumSimulated": {
-      return [
-        `MUSD price: ${fmt18(a.musdPrice)}`,
-        `Notional: ${fmt18(a.notional)} MUSD`,
-        `Est. gain: ${fmt18(a.estGain)} MUSD`
-      ].join("\n");
+    case "RulesUpdated": {
+      return "Rules saved onchain.";
     }
-    case "DiscountSimulated": {
-      return [
-        `MUSD price: ${fmt18(a.musdPrice)}`,
-        `Spend: ${fmt18(a.spend)} MUSD`,
-        `MUSD acquired: ${fmt18(a.musdAcquired)} MUSD`,
-        `Est. savings: ${fmt18(a.estSavings)} MUSD`
-      ].join("\n");
-    }
-    case "SafetyRan": {
+    case "BtcDownExecuted": {
       return [
         `BTC: ${fmt18(a.btcPrice)}`,
         `ICR: ${fmt18(a.icrBefore)}x → ${fmt18(a.icrAfter)}x`,
         `Repaid: ${fmt18(a.repayAmount)} MUSD`
       ].join("\n");
     }
-    case "PegRan": {
+    case "BtcUpExecuted": {
+      return [
+        `BTC: ${fmt18(a.btcPrice)}`,
+        `ICR: ${fmt18(a.icrBefore)}x → ${fmt18(a.icrAfter)}x`,
+        `Minted: ${fmt18(a.mintAmount)} MUSD (to reserve)`
+      ].join("\n");
+    }
+    case "PremiumRotated": {
       return [
         `MUSD price: ${fmt18(a.musdPrice)}`,
-        `Premium active: ${a.premiumActive ? "Yes" : "No"}`,
-        `Discount active: ${a.discountActive ? "Yes" : "No"}`
+        `Sold: ${fmt18(a.sellMusd)} MUSD`,
+        `USDC out (sim): ${fmt18(a.estUsdcOut)}`
       ].join("\n");
     }
-    case "AutomationRan": {
+    case "DiscountRotated": {
       return [
-        `BTC: ${fmt18(a.btcPrice)} | MUSD: ${fmt18(a.musdPrice)}`,
-        `ICR: ${fmt18(a.icrBefore)}x → ${fmt18(a.icrAfter)}x`,
-        `Safety reserve: ${fmt18(a.safetyBefore)} → ${fmt18(a.safetyAfter)}`,
-        `Opp reserve: ${fmt18(a.oppBefore)} → ${fmt18(a.oppAfter)}`,
-        `Mask: ${typeof a.mask === "bigint" ? a.mask.toString() : String(a.mask ?? "0")}`
+        `MUSD price: ${fmt18(a.musdPrice)}`,
+        `Spent: ${fmt18(a.spendUsdc)} USDC`,
+        `MUSD out (sim): ${fmt18(a.estMusdOut)}`
       ].join("\n");
-    }
-    case "ReserveDeposited": {
-      return [`Token: ${fmtAddr(a.token)}`, `Amount: ${fmt18(a.amount)} MUSD`].join("\n");
-    }
-    case "ReserveWithdrawn": {
-      return [`Token: ${fmtAddr(a.token)}`, `Amount: ${fmt18(a.amount)} MUSD`].join("\n");
-    }
-    case "RulesUpdated": {
-      return "Rules saved onchain.";
     }
     default:
       return safeStringify(a);

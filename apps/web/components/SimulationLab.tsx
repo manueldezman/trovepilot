@@ -8,18 +8,21 @@ import { useSimulationActions } from "@/hooks/useSimulationActions";
 import { useAutomation } from "@/hooks/useAutomation";
 import { PreviewModal } from "@/components/PreviewModal";
 
-type Scenario = "btc_drop" | "premium" | "discount";
+type Scenario = "btc_down" | "btc_up" | "premium" | "discount";
 
 export function SimulationLab() {
   const mounted = useMounted();
   const { address } = useAccount();
   const shortAddr = useMemo(() => (mounted && address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null), [address, mounted]);
 
-  const { setBtcDrop15, setPremium103, setDiscount097, reset, error: simError } = useSimulationActions();
-  const { previewSafety, previewPeg, runSafety, runPeg, error: autoError } = useAutomation();
+  const { setBtcDown, setBtcUp, setPremium103, setDiscount097, reset, error: simError } = useSimulationActions();
+  const { previewBtcDown, previewBtcUp, previewPremium, previewDiscount, runBtcDown, runBtcUp, runPremium, runDiscount, error: autoError } = useAutomation();
 
   const [busy, setBusy] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
+
+  const [btcDownPct, setBtcDownPct] = useState(15);
+  const [btcUpPct, setBtcUpPct] = useState(10);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
@@ -45,8 +48,15 @@ export function SimulationLab() {
     setResetMsg(null);
 
     try {
-      await writeSim(); // writes per-user sim state onchain
-      const p = next === "btc_drop" ? await previewSafety() : await previewPeg();
+      await writeSim();
+      const p =
+        next === "btc_down"
+          ? await previewBtcDown()
+          : next === "btc_up"
+          ? await previewBtcUp()
+          : next === "premium"
+          ? await previewPremium()
+          : await previewDiscount();
       setPreview(p);
     } catch (e) {
       setPreviewErr((e as Error)?.message ?? "Preview failed");
@@ -58,18 +68,21 @@ export function SimulationLab() {
   async function confirm() {
     await wrap(async () => {
       if (!scenario) return;
-      if (scenario === "btc_drop") await runSafety();
-      else await runPeg();
+      if (scenario === "btc_down") await runBtcDown();
+      else if (scenario === "btc_up") await runBtcUp();
+      else if (scenario === "premium") await runPremium();
+      else await runDiscount();
       setModalOpen(false);
     });
   }
 
   const modalTitle = useMemo(() => {
-    if (scenario === "btc_drop") return "BTC Shock (-15%)";
+    if (scenario === "btc_down") return `BTC Down (-${btcDownPct}%)`;
+    if (scenario === "btc_up") return `BTC Up (+${btcUpPct}%)`;
     if (scenario === "premium") return "MUSD Premium";
     if (scenario === "discount") return "MUSD Discount";
     return "Preview";
-  }, [scenario]);
+  }, [btcDownPct, btcUpPct, scenario]);
 
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
@@ -80,28 +93,48 @@ export function SimulationLab() {
       </div>
 
       <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Btn disabled={busy} onClick={() => wrap(() => openScenario("btc_drop", setBtcDrop15))}>
-            BTC drops 15%
-          </Btn>
-          <Btn disabled={busy} onClick={() => wrap(() => openScenario("premium", setPremium103))}>
-            MUSD premium ($1.03)
-          </Btn>
-          <Btn disabled={busy} onClick={() => wrap(() => openScenario("discount", setDiscount097))}>
-            MUSD discount ($0.97)
-          </Btn>
-          <Btn
-            disabled={busy}
-            onClick={() =>
-              wrap(async () => {
-                setResetMsg(null);
-                await reset();
-                setResetMsg("Reset complete.");
-              })
-            }
-          >
-            Reset market
-          </Btn>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14, background: "rgba(15,23,42,0.02)" }}>
+            <div style={{ fontWeight: 750, letterSpacing: -0.2 }}>BTC shocks</div>
+            <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+              <PctRow label="Down" value={btcDownPct} onChange={setBtcDownPct} />
+              <Btn disabled={busy} onClick={() => wrap(() => openScenario("btc_down", () => setBtcDown(btcDownPct)))}>
+                Simulate BTC Down
+              </Btn>
+
+              <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }} />
+
+              <PctRow label="Up" value={btcUpPct} onChange={setBtcUpPct} />
+              <Btn disabled={busy} onClick={() => wrap(() => openScenario("btc_up", () => setBtcUp(btcUpPct)))}>
+                Simulate BTC Up
+              </Btn>
+            </div>
+          </div>
+
+          <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 14, background: "rgba(15,23,42,0.02)" }}>
+            <div style={{ fontWeight: 750, letterSpacing: -0.2 }}>Peg scenarios</div>
+            <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+              <Btn disabled={busy} onClick={() => wrap(() => openScenario("premium", setPremium103))}>
+                MUSD Premium ($1.03)
+              </Btn>
+              <Btn disabled={busy} onClick={() => wrap(() => openScenario("discount", setDiscount097))}>
+                MUSD Discount ($0.97)
+              </Btn>
+              <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }} />
+              <Btn
+                disabled={busy}
+                onClick={() =>
+                  wrap(async () => {
+                    setResetMsg(null);
+                    await reset();
+                    setResetMsg("Reset complete.");
+                  })
+                }
+              >
+                Reset market
+              </Btn>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -111,7 +144,7 @@ export function SimulationLab() {
       <PreviewModal
         open={modalOpen}
         title={modalTitle}
-        subtitle="Review the scenario preview, then Confirm to execute."
+        subtitle="Review the preview, then Confirm to execute."
         loading={loading}
         warning={null}
         onClose={() => setModalOpen(false)}
@@ -121,7 +154,15 @@ export function SimulationLab() {
         {previewErr ? <div style={{ color: "var(--critical)", fontSize: 12 }}>{previewErr}</div> : null}
         {preview ? (
           <div style={{ display: "grid", gap: 8 }}>
-            {scenario === "btc_drop" ? <SafetyPreviewRows preview={preview} /> : scenario === "premium" ? <PremiumPreviewRows preview={preview} /> : <DiscountPreviewRows preview={preview} />}
+            {scenario === "btc_down" ? (
+              <BtcDownRows preview={preview} />
+            ) : scenario === "btc_up" ? (
+              <BtcUpRows preview={preview} />
+            ) : scenario === "premium" ? (
+              <PremiumRows preview={preview} />
+            ) : (
+              <DiscountRows preview={preview} />
+            )}
           </div>
         ) : null}
       </PreviewModal>
@@ -139,11 +180,36 @@ function Btn({ children, disabled, onClick }: { children: React.ReactNode; disab
         borderRadius: 12,
         border: "1px solid var(--border)",
         background: "rgba(15,23,42,0.04)",
-        color: "var(--text)"
+        color: "var(--text)",
+        textAlign: "left"
       }}
     >
       {children}
     </button>
+  );
+}
+
+function PctRow({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <span style={{ color: "var(--muted)", fontSize: 13 }}>{label} %</span>
+      <input
+        value={value}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        onChange={(e) => onChange(Number(e.target.value.replace(/[^0-9]/g, "")) || 0)}
+        style={{
+          width: 84,
+          padding: "8px 10px",
+          borderRadius: 12,
+          border: "1px solid var(--border)",
+          background: "rgba(15,23,42,0.03)",
+          color: "var(--text)",
+          fontFamily: "var(--mono)",
+          textAlign: "right"
+        }}
+      />
+    </label>
   );
 }
 
@@ -156,14 +222,15 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SafetyPreviewRows({ preview }: { preview: any }) {
+function BtcDownRows({ preview }: { preview: any }) {
   return (
     <>
       <Row label="Sim BTC price" value={formatUnits(preview.btcPrice as bigint, 18)} />
       <Row label="ICR" value={`${formatUnits(preview.icr as bigint, 18)}x`} />
-      <Row label="Safety ICR" value={`${formatUnits(preview.safetyICR as bigint, 18)}x`} />
-      <Row label="Safety triggered" value={preview.triggered ? "Yes" : "No"} />
-      <Row label="Safety reserve" value={`${formatUnits(preview.safetyReserveBalance as bigint, 18)} MUSD`} />
+      <Row label="Band lower" value={`${formatUnits(preview.bandLower as bigint, 18)}x`} />
+      <Row label="Target ICR" value={`${formatUnits(preview.targetICR as bigint, 18)}x`} />
+      <Row label="Triggered" value={preview.triggered ? "Yes" : "No"} />
+      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
       {preview.triggered ? (
         <>
           <Row label="Repay amount" value={`${formatUnits(preview.repayAmount as bigint, 18)} MUSD`} />
@@ -174,26 +241,46 @@ function SafetyPreviewRows({ preview }: { preview: any }) {
   );
 }
 
-function PremiumPreviewRows({ preview }: { preview: any }) {
+function BtcUpRows({ preview }: { preview: any }) {
   return (
     <>
-      <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
-      <Row label="Premium threshold" value={formatUnits(preview.premiumThreshold as bigint, 18)} />
-      <Row label="Premium active" value={preview.premiumActive ? "Yes" : "No"} />
-      <Row label="Opportunity reserve" value={`${formatUnits(preview.opportunityReserveBalance as bigint, 18)} MUSD`} />
-      <Row label="Estimated gain" value={`${formatUnits(preview.estGain as bigint, 18)} MUSD`} />
+      <Row label="Sim BTC price" value={formatUnits(preview.btcPrice as bigint, 18)} />
+      <Row label="ICR" value={`${formatUnits(preview.icr as bigint, 18)}x`} />
+      <Row label="Band upper" value={`${formatUnits(preview.bandUpper as bigint, 18)}x`} />
+      <Row label="Target ICR" value={`${formatUnits(preview.targetICR as bigint, 18)}x`} />
+      <Row label="Triggered" value={preview.triggered ? "Yes" : "No"} />
+      {preview.triggered ? (
+        <>
+          <Row label="Mint amount (to reserve)" value={`${formatUnits(preview.mintAmount as bigint, 18)} MUSD`} />
+          <Row label="Signature required" value={(preview.mintAmount as bigint) > 0n ? "Yes" : "No"} />
+        </>
+      ) : null}
     </>
   );
 }
 
-function DiscountPreviewRows({ preview }: { preview: any }) {
+function PremiumRows({ preview }: { preview: any }) {
   return (
     <>
       <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
-      <Row label="Discount threshold" value={formatUnits(preview.discountThreshold as bigint, 18)} />
-      <Row label="Discount active" value={preview.discountActive ? "Yes" : "No"} />
-      <Row label="Opportunity reserve" value={`${formatUnits(preview.opportunityReserveBalance as bigint, 18)} MUSD`} />
-      <Row label="Estimated savings" value={`${formatUnits(preview.estSavings as bigint, 18)} MUSD`} />
+      <Row label="Active" value={preview.active ? "Yes" : "No"} />
+      <Row label="Sell MUSD" value={`${formatUnits(preview.sellMusd as bigint, 18)} MUSD`} />
+      <Row label="Est. USDC out" value={`${formatUnits(preview.estUsdcOut as bigint, 18)} USDC`} />
+      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
+      <Row label="USDC reserve" value={`${formatUnits(preview.usdcReserve as bigint, 18)} USDC`} />
+    </>
+  );
+}
+
+function DiscountRows({ preview }: { preview: any }) {
+  return (
+    <>
+      <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
+      <Row label="Active" value={preview.active ? "Yes" : "No"} />
+      <Row label="Spend USDC" value={`${formatUnits(preview.spendUsdc as bigint, 18)} USDC`} />
+      <Row label="Est. MUSD out" value={`${formatUnits(preview.estMusdOut as bigint, 18)} MUSD`} />
+      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
+      <Row label="USDC reserve" value={`${formatUnits(preview.usdcReserve as bigint, 18)} USDC`} />
     </>
   );
 }

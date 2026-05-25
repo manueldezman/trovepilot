@@ -18,7 +18,7 @@ export function useReserveActions() {
       setIsPending(true);
       try {
         await writeContractAsync({ address: MEZO.musd, abi: erc20Abi, functionName: "approve", args: [addresses.vault, amount] });
-        await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "depositReserve", args: [MEZO.musd, amount] });
+        await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "depositReserveMUSD", args: [amount] });
       } catch (e) {
         setError(e as Error);
         throw e;
@@ -35,7 +35,7 @@ export function useReserveActions() {
       if (!addresses.vault) throw new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
       setIsPending(true);
       try {
-        await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "withdrawReserve", args: [MEZO.musd, amount] });
+        await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "withdrawReserveMUSD", args: [amount] });
       } catch (e) {
         setError(e as Error);
         throw e;

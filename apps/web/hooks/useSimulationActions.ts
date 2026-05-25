@@ -19,36 +19,51 @@ export function useSimulationActions() {
   };
 
   async function readProtocolBtcPrice(): Promise<bigint> {
-    const price = (await publicClient.readContract({
+    return (await publicClient.readContract({
       address: MEZO.priceFeed,
       abi: mezoPriceFeedAbi,
       functionName: "fetchPrice"
     })) as bigint;
-    return price;
   }
 
-  const setBtcDrop15 = useCallback(async () => {
-    setError(null);
-    try {
-      const current = await readProtocolBtcPrice();
-      const next = (current * 85n) / 100n;
-      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
-      await publicClient.waitForTransactionReceipt({ hash });
-    } catch (e) {
-      setError(e as Error);
-      throw e;
-    }
-  }, [writeContractAsync]);
+  const setBtcDown = useCallback(
+    async (pct: number) => {
+      setError(null);
+      try {
+        const base = await readProtocolBtcPrice();
+        const p = BigInt(Math.max(0, Math.min(100, Math.round(pct))));
+        const next = (base * (100n - p)) / 100n;
+        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
+        await publicClient.waitForTransactionReceipt({ hash });
+      } catch (e) {
+        setError(e as Error);
+        throw e;
+      }
+    },
+    [writeContractAsync]
+  );
+
+  const setBtcUp = useCallback(
+    async (pct: number) => {
+      setError(null);
+      try {
+        const base = await readProtocolBtcPrice();
+        const p = BigInt(Math.max(0, Math.min(100, Math.round(pct))));
+        const next = (base * (100n + p)) / 100n;
+        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
+        await publicClient.waitForTransactionReceipt({ hash });
+      } catch (e) {
+        setError(e as Error);
+        throw e;
+      }
+    },
+    [writeContractAsync]
+  );
 
   const setPremium103 = useCallback(async () => {
     setError(null);
     try {
-      const hash = await writeContractAsync({
-        address: withVault(),
-        abi: vaultAbi,
-        functionName: "setSimulatedMUSDPrice",
-        args: [parseUnits("1.03", 18)]
-      });
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("1.03", 18)] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
@@ -59,12 +74,7 @@ export function useSimulationActions() {
   const setDiscount097 = useCallback(async () => {
     setError(null);
     try {
-      const hash = await writeContractAsync({
-        address: withVault(),
-        abi: vaultAbi,
-        functionName: "setSimulatedMUSDPrice",
-        args: [parseUnits("0.97", 18)]
-      });
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("0.97", 18)] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
@@ -75,16 +85,10 @@ export function useSimulationActions() {
   const reset = useCallback(async () => {
     setError(null);
     try {
-      // Reset should re-base to current Mezo protocol BTC price and reset MUSD peg to 1.00.
       const btc = await readProtocolBtcPrice();
       const h1 = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [btc] });
       await publicClient.waitForTransactionReceipt({ hash: h1 });
-      const h2 = await writeContractAsync({
-        address: withVault(),
-        abi: vaultAbi,
-        functionName: "setSimulatedMUSDPrice",
-        args: [parseUnits("1.00", 18)]
-      });
+      const h2 = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("1.00", 18)] });
       await publicClient.waitForTransactionReceipt({ hash: h2 });
     } catch (e) {
       setError(e as Error);
@@ -92,5 +96,6 @@ export function useSimulationActions() {
     }
   }, [writeContractAsync]);
 
-  return { setBtcDrop15, setPremium103, setDiscount097, reset, error };
+  return { setBtcDown, setBtcUp, setPremium103, setDiscount097, reset, error };
 }
+

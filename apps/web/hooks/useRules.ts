@@ -6,14 +6,16 @@ import { formatUnits } from "viem";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 
-type RulesPayload = {
-  safetyICR: bigint;
+export type RulesPayload = {
+  targetICR: bigint;
+  bandLowerICR: bigint;
+  bandUpperICR: bigint;
   premiumThreshold: bigint;
   discountThreshold: bigint;
-  maxReserveUseBps: bigint;
-  safetyReserveBps: bigint;
-  opportunityReserveBps: bigint;
-  safetyEnabled: boolean;
+  premiumSellBps: bigint;
+  discountBuyBps: bigint;
+  btcDownEnabled: boolean;
+  btcUpEnabled: boolean;
   premiumEnabled: boolean;
   discountEnabled: boolean;
 };
@@ -36,37 +38,44 @@ export function useRules() {
     if (!data) return null;
     const r = data as any;
     const raw = {
-      safetyICR: (r.safetyICR ?? 0n) as bigint,
-      premiumThreshold: (r.premiumThreshold ?? 0n) as bigint,
-      discountThreshold: (r.discountThreshold ?? 0n) as bigint,
-      maxReserveUseBps: (r.maxReserveUseBps ?? 0n) as bigint,
-      safetyReserveBps: (r.safetyReserveBps ?? 0n) as bigint,
-      opportunityReserveBps: (r.opportunityReserveBps ?? 0n) as bigint,
-      safetyEnabled: Boolean(r.safetyEnabled),
-      premiumEnabled: Boolean(r.premiumEnabled),
-      discountEnabled: Boolean(r.discountEnabled)
+      targetICR: (r.targetICR ?? r[0] ?? 0n) as bigint,
+      bandLowerICR: (r.bandLowerICR ?? r[1] ?? 0n) as bigint,
+      bandUpperICR: (r.bandUpperICR ?? r[2] ?? 0n) as bigint,
+      premiumThreshold: (r.premiumThreshold ?? r[3] ?? 0n) as bigint,
+      discountThreshold: (r.discountThreshold ?? r[4] ?? 0n) as bigint,
+      premiumSellBps: (r.premiumSellBps ?? r[5] ?? 0n) as bigint,
+      discountBuyBps: (r.discountBuyBps ?? r[6] ?? 0n) as bigint,
+      btcDownEnabled: Boolean(r.btcDownEnabled ?? r[7]),
+      btcUpEnabled: Boolean(r.btcUpEnabled ?? r[8]),
+      premiumEnabled: Boolean(r.premiumEnabled ?? r[9]),
+      discountEnabled: Boolean(r.discountEnabled ?? r[10])
     };
 
     const looksUnset =
-      raw.safetyICR === 0n &&
+      raw.targetICR === 0n &&
+      raw.bandLowerICR === 0n &&
+      raw.bandUpperICR === 0n &&
       raw.premiumThreshold === 0n &&
       raw.discountThreshold === 0n &&
-      raw.maxReserveUseBps === 0n &&
-      raw.safetyReserveBps === 0n &&
-      raw.opportunityReserveBps === 0n &&
-      raw.safetyEnabled === false &&
+      raw.premiumSellBps === 0n &&
+      raw.discountBuyBps === 0n &&
+      raw.btcDownEnabled === false &&
+      raw.btcUpEnabled === false &&
       raw.premiumEnabled === false &&
       raw.discountEnabled === false;
 
     if (looksUnset) return null;
+
     return {
-      safetyICR: formatUnits(raw.safetyICR, 18),
+      targetICR: formatUnits(raw.targetICR, 18),
+      bandLowerICR: formatUnits(raw.bandLowerICR, 18),
+      bandUpperICR: formatUnits(raw.bandUpperICR, 18),
       premiumThreshold: formatUnits(raw.premiumThreshold, 18),
       discountThreshold: formatUnits(raw.discountThreshold, 18),
-      maxReserveUseBps: bpsToPercentString(raw.maxReserveUseBps),
-      safetyReserveBps: bpsToPercentString(raw.safetyReserveBps),
-      opportunityReserveBps: bpsToPercentString(raw.opportunityReserveBps),
-      safetyEnabled: raw.safetyEnabled,
+      premiumSellBps: bpsToPercentString(raw.premiumSellBps),
+      discountBuyBps: bpsToPercentString(raw.discountBuyBps),
+      btcDownEnabled: raw.btcDownEnabled,
+      btcUpEnabled: raw.btcUpEnabled,
       premiumEnabled: raw.premiumEnabled,
       discountEnabled: raw.discountEnabled
     };
@@ -101,3 +110,4 @@ function bpsToPercentString(bps: bigint): string {
   const frac2 = frac.toString().padStart(2, "0").replace(/0+$/, "");
   return `${sign}${whole.toString()}.${frac2}`;
 }
+

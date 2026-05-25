@@ -11,16 +11,10 @@ import { useProtocolTrove } from "@/hooks/useProtocolTrove";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 
-const ONE = 10n ** 18n;
-
 function clamp01(x: number) {
   if (x < 0) return 0;
   if (x > 1) return 1;
   return x;
-}
-
-function mulDiv(a: bigint, b: bigint, d: bigint) {
-  return (a * b) / d;
 }
 
 export function IcrHealthCard() {
@@ -42,8 +36,14 @@ export function IcrHealthCard() {
 
   const safetyICR = useMemo(() => {
     const r = onchainRules as any;
-    const v = (r?.safetyICR ?? r?.[0]) as bigint | undefined;
-    return v && v > 0n ? v : 1_500_000_000_000_000_000n; // 1.50e18 default
+    const target = (r?.targetICR ?? r?.[0]) as bigint | undefined;
+    const lower = (r?.bandLowerICR ?? r?.[1]) as bigint | undefined;
+    const upper = (r?.bandUpperICR ?? r?.[2]) as bigint | undefined;
+    return {
+      target: target && target > 0n ? target : 1_600_000_000_000_000_000n,
+      lower: lower && lower > 0n ? lower : 1_580_000_000_000_000_000n,
+      upper: upper && upper > 0n ? upper : 1_620_000_000_000_000_000n
+    };
   }, [onchainRules]);
 
   const protocolIcr = protocolTrove?.status === 1n && protocolTrove.debt > 0n ? protocolTrove.icr : null;
@@ -51,11 +51,10 @@ export function IcrHealthCard() {
   const riskIcr = simIcr ?? protocolIcr;
   const status = useMemo(() => {
     if (!riskIcr) return { label: "—", tone: "muted" as const };
-    if (riskIcr < safetyICR) return { label: "CRITICAL", tone: "critical" as const };
-    // Early warning band just above the safety threshold.
-    if (riskIcr < mulDiv(safetyICR, 115n, 100n)) return { label: "WARNING", tone: "warn" as const };
-    return { label: "SAFE", tone: "safe" as const };
-  }, [riskIcr, safetyICR]);
+    if (riskIcr < safetyICR.lower) return { label: "BELOW", tone: "critical" as const };
+    if (riskIcr > safetyICR.upper) return { label: "ABOVE", tone: "warn" as const };
+    return { label: "STABLE", tone: "safe" as const };
+  }, [riskIcr, safetyICR.lower, safetyICR.upper]);
 
   const pct = useMemo(() => {
     if (!riskIcr) return 0.0;
@@ -101,8 +100,8 @@ export function IcrHealthCard() {
               {status.label}
             </span>
             <span style={{ color: "var(--muted)", fontSize: 12 }}>
-              protocol BTC: {protocolPrice ? formatUnits(protocolPrice, 18) : "—"} • sim BTC: {sim?.btcPrice ? formatUnits(sim.btcPrice, 18) : "—"} • safety ICR:{" "}
-              {formatUnits(safetyICR, 18)}
+              protocol BTC: {protocolPrice ? formatUnits(protocolPrice, 18) : "—"} • sim BTC: {sim?.btcPrice ? formatUnits(sim.btcPrice, 18) : "—"} • target:{" "}
+              {formatUnits(safetyICR.target, 18)} (band {formatUnits(safetyICR.lower, 18)}–{formatUnits(safetyICR.upper, 18)})
             </span>
           </div>
 

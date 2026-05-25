@@ -23,10 +23,8 @@ export function VaultOverview({ showActions = false }: { showActions?: boolean }
 
       {data ? (
         <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-          <Row label="Total reserve" value={data.musdReserve} />
-          <Row label="Safety reserve" value={data.safetyReserve} />
-          <Row label="Opportunity reserve" value={data.opportunityReserve} />
-          <Row label="MUSD acquired (sim)" value={data.opportunityMusdAcquired} />
+          <Row label="MUSD reserve" value={data.musdReserve} />
+          <Row label="USDC reserve (sim)" value={(data as any).usdcReserve ?? "—"} />
           <Row label="Rules set" value={data.rulesSet ? "Yes" : "No"} />
           {showActions ? <DepositWithdraw /> : null}
         </div>

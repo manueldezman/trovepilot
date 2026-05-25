@@ -2,6 +2,7 @@ import { IcrHealthCard } from "@/components/IcrHealthCard";
 import { TroveOverview } from "@/components/TroveOverview";
 import { VaultOverview } from "@/components/VaultOverview";
 import { HeroHeader } from "@/components/HeroHeader";
+import { LiquidCoverageCard } from "@/components/LiquidCoverageCard";
 
 export default function HomePage() {
   return (
@@ -9,7 +10,10 @@ export default function HomePage() {
       <HeroHeader />
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14, alignItems: "stretch" }}>
         <IcrHealthCard />
-        <VaultOverview />
+        <div style={{ display: "grid", gap: 14 }}>
+          <VaultOverview />
+          <LiquidCoverageCard />
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <TroveOverview />

@@ -8,24 +8,41 @@ import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
 import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
 
-export type SafetyPreview = {
+export type BtcDownPreview = {
   triggered: boolean;
   repayAmount: bigint;
   icr: bigint;
   btcPrice: bigint;
-  safetyICR: bigint;
-  safetyReserveBalance: bigint;
+  bandLower: bigint;
+  targetICR: bigint;
+  musdReserve: bigint;
 };
 
-export type PegPreview = {
+export type BtcUpPreview = {
+  triggered: boolean;
+  mintAmount: bigint;
+  icr: bigint;
+  btcPrice: bigint;
+  bandUpper: bigint;
+  targetICR: bigint;
+};
+
+export type PremiumPreview = {
+  active: boolean;
   musdPrice: bigint;
-  premiumActive: boolean;
-  discountActive: boolean;
-  premiumThreshold: bigint;
-  discountThreshold: bigint;
-  opportunityReserveBalance: bigint;
-  estGain: bigint;
-  estSavings: bigint;
+  sellMusd: bigint;
+  estUsdcOut: bigint;
+  musdReserve: bigint;
+  usdcReserve: bigint;
+};
+
+export type DiscountPreview = {
+  active: boolean;
+  musdPrice: bigint;
+  spendUsdc: bigint;
+  estMusdOut: bigint;
+  musdReserve: bigint;
+  usdcReserve: bigint;
 };
 
 export function useAutomation() {
@@ -40,12 +57,22 @@ export function useAutomation() {
     return addresses.vault;
   };
 
-  const previewSafety = useCallback(async (): Promise<SafetyPreview> => {
+  const nonceFor = useCallback(async (): Promise<bigint> => {
+    if (!address) throw new Error("Connect a wallet");
+    return (await publicClient.readContract({
+      address: MEZO.borrowerOperationsSignatures,
+      abi: mezoBorrowerOperationsSignaturesAbi,
+      functionName: "getNonce",
+      args: [address]
+    })) as bigint;
+  }, [address]);
+
+  const previewBtcDown = useCallback(async (): Promise<BtcDownPreview> => {
     if (!address) throw new Error("Connect a wallet");
     const res = (await publicClient.readContract({
       address: withVault(),
       abi: vaultAbi,
-      functionName: "previewSafety",
+      functionName: "previewBtcDown",
       args: [address]
     })) as any;
 
@@ -54,57 +81,81 @@ export function useAutomation() {
       repayAmount: (res.repayAmount ?? res[1]) as bigint,
       icr: (res.icr ?? res[2]) as bigint,
       btcPrice: (res.btcPrice ?? res[3]) as bigint,
-      safetyICR: (res.safetyICR ?? res[4]) as bigint,
-      safetyReserveBalance: (res.safetyReserveBalance ?? res[5]) as bigint
+      bandLower: (res.bandLower ?? res[4]) as bigint,
+      targetICR: (res.targetICR ?? res[5]) as bigint,
+      musdReserve: (res.musdReserve ?? res[6]) as bigint
     };
   }, [address]);
 
-  const previewPeg = useCallback(async (): Promise<PegPreview> => {
+  const previewBtcUp = useCallback(async (): Promise<BtcUpPreview> => {
     if (!address) throw new Error("Connect a wallet");
     const res = (await publicClient.readContract({
       address: withVault(),
       abi: vaultAbi,
-      functionName: "previewPeg",
+      functionName: "previewBtcUp",
       args: [address]
     })) as any;
 
     return {
-      musdPrice: (res.musdPrice ?? res[0]) as bigint,
-      premiumActive: Boolean(res.premiumActive ?? res[1]),
-      discountActive: Boolean(res.discountActive ?? res[2]),
-      premiumThreshold: (res.premiumThreshold ?? res[3]) as bigint,
-      discountThreshold: (res.discountThreshold ?? res[4]) as bigint,
-      opportunityReserveBalance: (res.opportunityReserveBalance ?? res[5]) as bigint,
-      estGain: (res.estGain ?? res[6]) as bigint,
-      estSavings: (res.estSavings ?? res[7]) as bigint
+      triggered: Boolean(res.triggered ?? res[0]),
+      mintAmount: (res.mintAmount ?? res[1]) as bigint,
+      icr: (res.icr ?? res[2]) as bigint,
+      btcPrice: (res.btcPrice ?? res[3]) as bigint,
+      bandUpper: (res.bandUpper ?? res[4]) as bigint,
+      targetICR: (res.targetICR ?? res[5]) as bigint
     };
   }, [address]);
 
-  const runSafety = useCallback(async () => {
+  const previewPremium = useCallback(async (): Promise<PremiumPreview> => {
+    if (!address) throw new Error("Connect a wallet");
+    const res = (await publicClient.readContract({
+      address: withVault(),
+      abi: vaultAbi,
+      functionName: "previewPremium",
+      args: [address]
+    })) as any;
+
+    return {
+      active: Boolean(res.active ?? res[0]),
+      musdPrice: (res.musdPrice ?? res[1]) as bigint,
+      sellMusd: (res.sellMusd ?? res[2]) as bigint,
+      estUsdcOut: (res.estUsdcOut ?? res[3]) as bigint,
+      musdReserve: (res.musdReserve ?? res[4]) as bigint,
+      usdcReserve: (res.usdcReserve ?? res[5]) as bigint
+    };
+  }, [address]);
+
+  const previewDiscount = useCallback(async (): Promise<DiscountPreview> => {
+    if (!address) throw new Error("Connect a wallet");
+    const res = (await publicClient.readContract({
+      address: withVault(),
+      abi: vaultAbi,
+      functionName: "previewDiscount",
+      args: [address]
+    })) as any;
+
+    return {
+      active: Boolean(res.active ?? res[0]),
+      musdPrice: (res.musdPrice ?? res[1]) as bigint,
+      spendUsdc: (res.spendUsdc ?? res[2]) as bigint,
+      estMusdOut: (res.estMusdOut ?? res[3]) as bigint,
+      musdReserve: (res.musdReserve ?? res[4]) as bigint,
+      usdcReserve: (res.usdcReserve ?? res[5]) as bigint
+    };
+  }, [address]);
+
+  const runBtcDown = useCallback(async () => {
     setError(null);
     try {
       if (!address) throw new Error("Connect a wallet");
       if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
 
-      const preview = await previewSafety();
-
-      // Only request a signature when a real safety repay will execute.
+      const preview = await previewBtcDown();
       if (preview.triggered && preview.repayAmount > 0n) {
-        const nonce = (await publicClient.readContract({
-          address: MEZO.borrowerOperationsSignatures,
-          abi: mezoBorrowerOperationsSignaturesAbi,
-          functionName: "getNonce",
-          args: [address]
-        })) as bigint;
-
+        const nonce = await nonceFor();
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
         const signature = (await signTypedDataAsync({
-          domain: {
-            name: "BorrowerOperationsSignatures",
-            version: "1",
-            chainId,
-            verifyingContract: MEZO.borrowerOperationsSignatures
-          },
+          domain: { name: "BorrowerOperationsSignatures", version: "1", chainId, verifyingContract: MEZO.borrowerOperationsSignatures },
           types: {
             RepayMUSD: [
               { name: "amount", type: "uint256" },
@@ -114,49 +165,79 @@ export function useAutomation() {
             ]
           },
           primaryType: "RepayMUSD",
-          message: {
-            amount: preview.repayAmount,
-            borrower: address,
-            nonce,
-            deadline
-          }
+          message: { amount: preview.repayAmount, borrower: address, nonce, deadline }
         })) as `0x${string}`;
 
-        const hash = await writeContractAsync({
-          address: withVault(),
-          abi: vaultAbi,
-          functionName: "runSafety",
-          args: [signature, deadline]
-        });
+        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: [signature, deadline] });
         await publicClient.waitForTransactionReceipt({ hash });
         return;
       }
 
-      const hash = await writeContractAsync({
-        address: withVault(),
-        abi: vaultAbi,
-        functionName: "runSafety",
-        args: ["0x", 0n]
-      });
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: ["0x", 0n] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, previewSafety, signTypedDataAsync, writeContractAsync]);
+  }, [address, chainId, nonceFor, previewBtcDown, signTypedDataAsync, writeContractAsync]);
 
-  const runPeg = useCallback(async () => {
+  const runBtcUp = useCallback(async () => {
     setError(null);
     try {
       if (!address) throw new Error("Connect a wallet");
       if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
 
-      const hash = await writeContractAsync({
-        address: withVault(),
-        abi: vaultAbi,
-        functionName: "runPeg",
-        args: []
-      });
+      const preview = await previewBtcUp();
+      if (preview.triggered && preview.mintAmount > 0n) {
+        const nonce = await nonceFor();
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
+        const signature = (await signTypedDataAsync({
+          domain: { name: "BorrowerOperationsSignatures", version: "1", chainId, verifyingContract: MEZO.borrowerOperationsSignatures },
+          types: {
+            AdjustTrove: [
+              { name: "collWithdrawal", type: "uint256" },
+              { name: "debtChange", type: "uint256" },
+              { name: "isDebtIncrease", type: "bool" },
+              { name: "assetAmount", type: "uint256" },
+              { name: "borrower", type: "address" },
+              { name: "recipient", type: "address" },
+              { name: "nonce", type: "uint256" },
+              { name: "deadline", type: "uint256" }
+            ]
+          },
+          primaryType: "AdjustTrove",
+          message: {
+            collWithdrawal: 0n,
+            debtChange: preview.mintAmount,
+            isDebtIncrease: true,
+            assetAmount: 0n,
+            borrower: address,
+            // The vault is the recipient for minted MUSD.
+            recipient: withVault(),
+            nonce,
+            deadline
+          }
+        })) as `0x${string}`;
+
+        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: [signature, deadline] });
+        await publicClient.waitForTransactionReceipt({ hash });
+        return;
+      }
+
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: ["0x", 0n] });
+      await publicClient.waitForTransactionReceipt({ hash });
+    } catch (e) {
+      setError(e as Error);
+      throw e;
+    }
+  }, [address, chainId, nonceFor, previewBtcUp, signTypedDataAsync, writeContractAsync]);
+
+  const runPremium = useCallback(async () => {
+    setError(null);
+    try {
+      if (!address) throw new Error("Connect a wallet");
+      if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runPremium", args: [] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
@@ -164,6 +245,19 @@ export function useAutomation() {
     }
   }, [address, chainId, writeContractAsync]);
 
-  return { previewSafety, previewPeg, runSafety, runPeg, error };
+  const runDiscount = useCallback(async () => {
+    setError(null);
+    try {
+      if (!address) throw new Error("Connect a wallet");
+      if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runDiscount", args: [] });
+      await publicClient.waitForTransactionReceipt({ hash });
+    } catch (e) {
+      setError(e as Error);
+      throw e;
+    }
+  }, [address, chainId, writeContractAsync]);
+
+  return { previewBtcDown, previewBtcUp, previewPremium, previewDiscount, runBtcDown, runBtcUp, runPremium, runDiscount, error };
 }
 
