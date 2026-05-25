@@ -58,6 +58,7 @@ export function OpenTroveForm() {
   const { openTrove, isPending, error, txUrl } = useOpenTrove();
 
   const disabled = isPending || btcValue <= 0n || !calc || calc.debtAmount <= 0n || calc.reasons.length > 0;
+  const belowMinMinted = Boolean(calc && calc.debtAmount > 0n && calc.debtAmount < MIN_MINTED);
 
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
@@ -107,11 +108,11 @@ export function OpenTroveForm() {
             padding: "10px 12px",
             borderRadius: 12,
             border: "1px solid var(--border)",
-            background: "rgba(124,58,237,0.25)",
+            background: disabled ? (belowMinMinted ? "rgba(244,63,94,0.20)" : "rgba(255,255,255,0.03)") : "rgba(124,58,237,0.25)",
             color: "var(--text)"
           }}
         >
-          {isPending ? "Submitting…" : "Open trove + mint MUSD"}
+          {isPending ? "Submitting…" : belowMinMinted ? "Minimum 2000 MUSD required" : "Open trove + mint MUSD"}
         </button>
         {txUrl ? (
           <a href={txUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline", color: "var(--muted)", fontSize: 13 }}>
