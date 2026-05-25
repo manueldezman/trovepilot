@@ -85,3 +85,48 @@ export const mezoBorrowerOperationsAbi = [
     outputs: [{ type: "uint256" }]
   }
 ] as const;
+
+export const mezoHintHelpersAbi = [
+  {
+    type: "function",
+    name: "computeNominalCR",
+    stateMutability: "view",
+    inputs: [
+      { name: "_coll", type: "uint256" },
+      { name: "_debt", type: "uint256" }
+    ],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "getApproxHint",
+    stateMutability: "view",
+    inputs: [
+      { name: "_CR", type: "uint256" },
+      { name: "_numTrials", type: "uint256" },
+      { name: "_inputRandomSeed", type: "uint256" }
+    ],
+    outputs: [
+      { name: "hintAddress", type: "address" },
+      { name: "diff", type: "uint256" },
+      { name: "latestRandomSeed", type: "uint256" }
+    ]
+  }
+] as const;
+
+export const mezoSortedTrovesAbi = [
+  {
+    type: "function",
+    name: "findInsertPosition",
+    stateMutability: "view",
+    inputs: [
+      { name: "_NICR", type: "uint256" },
+      { name: "_prevId", type: "address" },
+      { name: "_nextId", type: "address" }
+    ],
+    outputs: [
+      { name: "prevId", type: "address" },
+      { name: "nextId", type: "address" }
+    ]
+  }
+] as const;
