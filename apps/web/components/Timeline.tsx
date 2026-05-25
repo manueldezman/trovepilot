@@ -2,16 +2,19 @@
 
 import { useAccount } from "wagmi";
 import { useTimeline } from "@/hooks/useTimeline";
+import { useMounted } from "@/hooks/useMounted";
 
 export function Timeline() {
+  const mounted = useMounted();
   const { address } = useAccount();
-  const { data: events = [], isLoading, error } = useTimeline(address);
+  const safeAddress = mounted ? address : undefined;
+  const { data: events = [], isLoading, error } = useTimeline(safeAddress);
 
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
       <h2 style={{ marginTop: 0 }}>Execution Timeline</h2>
 
-      {!address ? <p style={{ color: "var(--muted)" }}>Connect a wallet to view events.</p> : null}
+      {!safeAddress ? <p style={{ color: "var(--muted)" }}>Connect a wallet to view events.</p> : null}
       {isLoading ? <p style={{ color: "var(--muted)" }}>Loading…</p> : null}
       {error ? <p style={{ color: "#fda4af" }}>{error.message}</p> : null}
 
@@ -32,7 +35,7 @@ export function Timeline() {
             ) : null}
           </div>
         ))}
-        {events.length === 0 && address ? <p style={{ color: "var(--muted)" }}>No events yet. Try running an action in Simulation Lab.</p> : null}
+        {events.length === 0 && safeAddress ? <p style={{ color: "var(--muted)" }}>No events yet. Try running an action in Simulation Lab.</p> : null}
       </div>
     </section>
   );

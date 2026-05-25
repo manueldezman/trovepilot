@@ -2,10 +2,13 @@
 
 import { useAccount } from "wagmi";
 import { useMezoTrove } from "@/hooks/useMezoTrove";
+import { useMounted } from "@/hooks/useMounted";
 
 export function TroveOverview() {
+  const mounted = useMounted();
   const { address } = useAccount();
-  const { data, isLoading, error } = useMezoTrove(address);
+  const safeAddress = mounted ? address : undefined;
+  const { data, isLoading, error } = useMezoTrove(safeAddress);
 
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
@@ -14,7 +17,7 @@ export function TroveOverview() {
         <div style={{ fontSize: 12, color: "var(--muted)" }}>{isLoading ? "Loading…" : null}</div>
       </div>
 
-      {!address ? <p style={{ color: "var(--muted)" }}>Connect a wallet to load your trove.</p> : null}
+      {!safeAddress ? <p style={{ color: "var(--muted)" }}>Connect a wallet to load your trove.</p> : null}
       {error ? <p style={{ color: "#fda4af" }}>{error.message}</p> : null}
 
       {data ? (
