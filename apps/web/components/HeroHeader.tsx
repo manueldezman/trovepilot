@@ -1,10 +1,8 @@
 "use client";
 
 export function HeroHeader({
-  title = "TrovePilot",
   subtitle = "Track reserve health, rebalance liquidity, and stabilize your borrowing position through BTC volatility and MUSD peg shifts."
 }: {
-  title?: string;
   subtitle?: string;
 }) {
   return (
@@ -17,11 +15,9 @@ export function HeroHeader({
         boxShadow: "var(--shadow)"
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 12, color: "var(--muted)", letterSpacing: 0.2 }}>Adaptive Reserve Coordination for Mezo</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{title}</h1>
-          <div style={{ marginTop: 8, fontSize: 18, fontWeight: 820, letterSpacing: -0.3, maxWidth: 920 }}>
+          <div style={{ fontSize: 20, fontWeight: 820, letterSpacing: -0.4, maxWidth: 920, lineHeight: 1.2 }}>
             Adaptive reserve coordination for leveraged Bitcoin borrowing.
           </div>
         </div>

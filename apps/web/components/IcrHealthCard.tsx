@@ -70,12 +70,12 @@ export function IcrHealthCard() {
   return (
     <section
       style={{
-        padding: 18,
+        padding: 16,
         border: "1px solid var(--border)",
         borderRadius: 16,
         background: "var(--panel)",
         boxShadow: "var(--shadow2)",
-        height: "100%"
+        height: "auto"
       }}
     >
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
