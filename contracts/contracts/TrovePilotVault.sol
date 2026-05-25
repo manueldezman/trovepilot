@@ -43,25 +43,42 @@ interface IMockMarketOracle {
 
 contract TrovePilotVault {
     struct StrategyRules {
-        uint256 minICR; // 1e18, e.g. 1.40e18
+        uint256 safetyICR; // 1e18, e.g. 1.50e18
         uint256 repayBps; // 1000 = 10%
         uint256 premiumThreshold; // 1e18
         uint256 discountThreshold; // 1e18
         uint256 maxReserveUseBps; // cap on reserve usage per action
-        bool collateralDefenseEnabled;
-        bool premiumModeEnabled;
-        bool discountModeEnabled;
+        uint256 safetyReserveBps; // must sum to 10_000 with opportunityReserveBps
+        uint256 opportunityReserveBps;
+        bool safetyEnabled;
+        bool premiumEnabled;
+        bool discountEnabled;
     }
 
     event ReserveDeposited(address indexed user, address indexed token, uint256 amount);
     event ReserveWithdrawn(address indexed user, address indexed token, uint256 amount);
     event RulesUpdated(address indexed user);
-    event CollateralDefenseExecuted(address indexed user, uint256 repayAmount, uint256 oldICR, uint256 newICR);
-    event PremiumResponseExecuted(address indexed user, uint256 musdPrice, uint256 amount);
-    event DiscountResponseExecuted(address indexed user, uint256 musdPrice, uint256 amount);
+    event RiskStateEvaluated(address indexed user, uint256 icr, bool safetyTriggered);
+    event SafetyRepayExecuted(address indexed user, uint256 repayAmount, uint256 icrBefore, uint256 icrAfter);
+    event PremiumSimulated(address indexed user, uint256 musdPrice, uint256 notional, uint256 estGain);
+    event DiscountSimulated(address indexed user, uint256 musdPrice, uint256 spend, uint256 musdAcquired, uint256 estSavings);
+    event AutomationRan(
+        address indexed user,
+        uint256 btcPrice,
+        uint256 musdPrice,
+        uint256 icrBefore,
+        uint256 icrAfter,
+        uint256 safetyBefore,
+        uint256 safetyAfter,
+        uint256 oppBefore,
+        uint256 oppAfter,
+        uint256 mask
+    );
 
-    mapping(address => mapping(address => uint256)) private reserves;
     mapping(address => StrategyRules) private rules;
+    mapping(address => uint256) private safetyReserve;
+    mapping(address => uint256) private opportunityReserve;
+    mapping(address => uint256) private opportunityMusdAcquired;
 
     address public immutable musdToken;
     address public immutable troveManager;
@@ -97,30 +114,67 @@ contract TrovePilotVault {
         hintHelpers = _hintHelpers;
         sortedTroves = _sortedTroves;
         marketOracle = IMockMarketOracle(_marketOracle);
+
+        // Allow the vault to spend its own MUSD balance when executing real repayments.
+        require(IERC20(_musdToken).approve(_borrowerOperationsSignatures, type(uint256).max), "APPROVE_FAIL");
+        // Some integrations route repayment via BorrowerOperations; approve it too for safety.
+        require(IERC20(_musdToken).approve(_borrowerOperations, type(uint256).max), "APPROVE_FAIL");
     }
 
     function depositReserve(address token, uint256 amount) external {
         require(amount > 0, "ZERO_AMOUNT");
+        require(token == musdToken, "TOKEN_NOT_SUPPORTED");
         require(IERC20(token).transferFrom(msg.sender, address(this), amount), "TRANSFER_FROM_FAIL");
-        reserves[msg.sender][token] += amount;
+        StrategyRules memory r = rules[msg.sender];
+        uint256 safetyBps = r.safetyReserveBps;
+        uint256 oppBps = r.opportunityReserveBps;
+        if (safetyBps == 0 && oppBps == 0) {
+            safetyBps = 10_000;
+            oppBps = 0;
+        }
+        require(safetyBps + oppBps == 10_000, "BAD_SPLIT");
+        uint256 toSafety = (amount * safetyBps) / 10_000;
+        uint256 toOpp = amount - toSafety;
+        safetyReserve[msg.sender] += toSafety;
+        opportunityReserve[msg.sender] += toOpp;
         emit ReserveDeposited(msg.sender, token, amount);
     }
 
     function withdrawReserve(address token, uint256 amount) external {
         require(amount > 0, "ZERO_AMOUNT");
-        uint256 bal = reserves[msg.sender][token];
-        require(bal >= amount, "INSUFFICIENT");
-        reserves[msg.sender][token] = bal - amount;
+        require(token == musdToken, "TOKEN_NOT_SUPPORTED");
+        uint256 total = safetyReserve[msg.sender] + opportunityReserve[msg.sender];
+        require(total >= amount, "INSUFFICIENT");
+        // Withdraw from opportunity first, then safety.
+        uint256 opp = opportunityReserve[msg.sender];
+        uint256 fromOpp = amount <= opp ? amount : opp;
+        uint256 remaining = amount - fromOpp;
+        if (fromOpp > 0) opportunityReserve[msg.sender] = opp - fromOpp;
+        if (remaining > 0) safetyReserve[msg.sender] -= remaining;
         require(IERC20(token).transfer(msg.sender, amount), "TRANSFER_FAIL");
         emit ReserveWithdrawn(msg.sender, token, amount);
     }
 
     function getReserveBalance(address user, address token) external view returns (uint256) {
-        return reserves[user][token];
+        if (token != musdToken) return 0;
+        return safetyReserve[user] + opportunityReserve[user];
+    }
+
+    function getSafetyReserve(address user) external view returns (uint256) {
+        return safetyReserve[user];
+    }
+
+    function getOpportunityReserve(address user) external view returns (uint256) {
+        return opportunityReserve[user];
+    }
+
+    function getOpportunityMusdAcquired(address user) external view returns (uint256) {
+        return opportunityMusdAcquired[user];
     }
 
     function setRules(StrategyRules calldata r) external {
         require(r.repayBps <= 10_000 && r.maxReserveUseBps <= 10_000, "BPS");
+        require(r.safetyReserveBps + r.opportunityReserveBps == 10_000, "BAD_SPLIT");
         rules[msg.sender] = r;
         emit RulesUpdated(msg.sender);
     }
@@ -129,80 +183,175 @@ contract TrovePilotVault {
         return rules[user];
     }
 
-    function previewCollateralDefense(address user) external view returns (uint256 repayAmount, uint256 oldICR, uint256 newNICR) {
+    function previewAutomation(address user)
+        external
+        view
+        returns (
+            bool needsSafetyRepay,
+            uint256 repayAmount,
+            uint256 icr,
+            uint256 btcPrice,
+            uint256 musdPrice,
+            bool premiumActive,
+            bool discountActive
+        )
+    {
         StrategyRules memory r = rules[user];
-        if (!r.collateralDefenseEnabled) return (0, 0, 0);
 
-        uint256 btcPrice = marketOracle.getBTCPrice();
-        if (btcPrice == 0) return (0, 0, 0);
+        btcPrice = marketOracle.getBTCPrice();
+        musdPrice = marketOracle.getMUSDPrice();
+        if (btcPrice == 0) return (false, 0, 0, btcPrice, musdPrice, false, false);
 
         ITroveManager tm = ITroveManager(troveManager);
-        oldICR = tm.getCurrentICR(user, btcPrice);
-        if (oldICR >= r.minICR) return (0, oldICR, 0);
+        icr = tm.getCurrentICR(user, btcPrice);
 
-        uint256 debt = tm.getTroveDebt(user);
-        if (debt == 0) return (0, oldICR, 0);
+        needsSafetyRepay = r.safetyEnabled && icr < r.safetyICR;
 
-        uint256 reserve = reserves[user][musdToken];
-        if (reserve == 0) return (0, oldICR, 0);
+        if (needsSafetyRepay) {
+            uint256 debt = tm.getTroveDebt(user);
+            if (debt == 0) return (false, 0, icr, btcPrice, musdPrice, false, false);
+            uint256 reserve = safetyReserve[user];
+            if (reserve == 0) return (true, 0, icr, btcPrice, musdPrice, false, false);
 
-        uint256 targetRepay = (debt * r.repayBps) / 10_000;
-        uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
-        repayAmount = targetRepay;
-        if (repayAmount > maxUse) repayAmount = maxUse;
-        if (repayAmount > reserve) repayAmount = reserve;
+            uint256 targetRepay = (debt * r.repayBps) / 10_000;
+            uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
+            repayAmount = targetRepay;
+            if (repayAmount > maxUse) repayAmount = maxUse;
+            if (repayAmount > reserve) repayAmount = reserve;
+        }
 
-        if (repayAmount == 0) return (0, oldICR, 0);
-
-        uint256 coll = tm.getTroveColl(user);
-        uint256 newDebt = debt - repayAmount;
-        if (newDebt == 0) return (0, oldICR, 0);
-
-        newNICR = IHintHelpers(hintHelpers).computeNominalCR(coll, newDebt);
+        // Peg rules depend only on simulated MUSD price, but are suppressed if safety triggers.
+        if (!needsSafetyRepay) {
+            premiumActive = r.premiumEnabled && musdPrice > r.premiumThreshold;
+            discountActive = r.discountEnabled && musdPrice < r.discountThreshold;
+        }
     }
 
-    function executeCollateralDefense(uint256 amount, bytes calldata signature, uint256 deadline) external {
+    function runAutomation(bytes calldata signature, uint256 deadline) external {
         StrategyRules memory r = rules[msg.sender];
-        require(r.collateralDefenseEnabled, "DISABLED");
 
         uint256 btcPrice = marketOracle.getBTCPrice();
+        uint256 musdPrice = marketOracle.getMUSDPrice();
         require(btcPrice > 0, "NO_PRICE");
 
         ITroveManager tm = ITroveManager(troveManager);
-        uint256 oldICR = tm.getCurrentICR(msg.sender, btcPrice);
-        require(oldICR < r.minICR, "NOT_NEEDED");
+        uint256 icrBefore = tm.getCurrentICR(msg.sender, btcPrice);
 
-        uint256 debt = tm.getTroveDebt(msg.sender);
-        require(debt > 0, "NO_DEBT");
+        uint256 safetyBefore = safetyReserve[msg.sender];
+        uint256 oppBefore = opportunityReserve[msg.sender];
 
-        uint256 reserve = reserves[msg.sender][musdToken];
-        require(reserve > 0, "NO_RESERVE");
+        bool safetyTriggered = r.safetyEnabled && icrBefore < r.safetyICR;
+        emit RiskStateEvaluated(msg.sender, icrBefore, safetyTriggered);
 
-        uint256 targetRepay = (debt * r.repayBps) / 10_000;
-        uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
-        uint256 cap = targetRepay;
-        if (cap > maxUse) cap = maxUse;
-        if (cap > reserve) cap = reserve;
-        require(amount > 0 && amount <= cap, "BAD_AMOUNT");
+        uint256 mask = 0;
 
-        // Reserve accounting first.
-        reserves[msg.sender][musdToken] = reserve - amount;
+        if (safetyTriggered) {
+            mask |= 1;
+            uint256 debt = tm.getTroveDebt(msg.sender);
+            uint256 reserve = safetyReserve[msg.sender];
+            if (debt == 0 || reserve == 0) {
+                emit AutomationRan(
+                    msg.sender,
+                    btcPrice,
+                    musdPrice,
+                    icrBefore,
+                    icrBefore,
+                    safetyBefore,
+                    safetyReserve[msg.sender],
+                    oppBefore,
+                    opportunityReserve[msg.sender],
+                    mask
+                );
+                return;
+            }
 
-        (address upper, address lower) = _findRepayHints(msg.sender, debt, amount);
+            uint256 targetRepay = (debt * r.repayBps) / 10_000;
+            uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
+            uint256 repayAmount = targetRepay;
+            if (repayAmount > maxUse) repayAmount = maxUse;
+            if (repayAmount > reserve) repayAmount = reserve;
+            if (repayAmount == 0) {
+                emit AutomationRan(
+                    msg.sender,
+                    btcPrice,
+                    musdPrice,
+                    icrBefore,
+                    icrBefore,
+                    safetyBefore,
+                    safetyReserve[msg.sender],
+                    oppBefore,
+                    opportunityReserve[msg.sender],
+                    mask
+                );
+                return;
+            }
 
-        // Real Mezo repayment using BorrowerOperationsSignatures. The user signs an authorization for `amount`,
-        // and this vault pays from its own MUSD balance (as the `_caller`).
-        IBorrowerOperationsSignatures(borrowerOperationsSignatures).repayMUSDWithSignature(
-            amount,
-            upper,
-            lower,
+            require(signature.length > 0 && deadline > 0, "SIGNATURE_REQUIRED");
+
+            // Accounting first.
+            safetyReserve[msg.sender] = reserve - repayAmount;
+
+            (address upper, address lower) = _findRepayHints(msg.sender, debt, repayAmount);
+
+            IBorrowerOperationsSignatures(borrowerOperationsSignatures).repayMUSDWithSignature(
+                repayAmount,
+                upper,
+                lower,
+                msg.sender,
+                signature,
+                deadline
+            );
+
+            uint256 icrAfter = tm.getCurrentICR(msg.sender, btcPrice);
+            emit SafetyRepayExecuted(msg.sender, repayAmount, icrBefore, icrAfter);
+            emit AutomationRan(
+                msg.sender,
+                btcPrice,
+                musdPrice,
+                icrBefore,
+                icrAfter,
+                safetyBefore,
+                safetyReserve[msg.sender],
+                oppBefore,
+                opportunityReserve[msg.sender],
+                mask
+            );
+            return;
+        }
+
+        // Peg actions (MUSD price only), executed only when safety is not triggered.
+        uint256 icrAfterPeg = icrBefore;
+
+        if (r.premiumEnabled && musdPrice > r.premiumThreshold) {
+            mask |= 2;
+            // Minimal simulation: "notional" is 10% of opportunity reserve; "gain" is (price-1) * notional.
+            uint256 notional = (opportunityReserve[msg.sender] * 1000) / 10_000;
+            uint256 gain = (notional * (musdPrice - 1e18)) / 1e18;
+            emit PremiumSimulated(msg.sender, musdPrice, notional, gain);
+        }
+
+        if (r.discountEnabled && musdPrice < r.discountThreshold) {
+            mask |= 4;
+            uint256 spend = (opportunityReserve[msg.sender] * 1000) / 10_000;
+            // Acquire more MUSD when price < 1: acquired = spend / price (scaled 1e18).
+            uint256 acquired = (spend * 1e18) / musdPrice;
+            opportunityMusdAcquired[msg.sender] += acquired;
+            uint256 savings = acquired > spend ? acquired - spend : 0;
+            emit DiscountSimulated(msg.sender, musdPrice, spend, acquired, savings);
+        }
+
+        emit AutomationRan(
             msg.sender,
-            signature,
-            deadline
+            btcPrice,
+            musdPrice,
+            icrBefore,
+            icrAfterPeg,
+            safetyBefore,
+            safetyReserve[msg.sender],
+            oppBefore,
+            opportunityReserve[msg.sender],
+            mask
         );
-
-        uint256 newICR = tm.getCurrentICR(msg.sender, btcPrice);
-        emit CollateralDefenseExecuted(msg.sender, amount, oldICR, newICR);
     }
 
     function _findRepayHints(address borrower, uint256 currentDebt, uint256 repayAmount) internal view returns (address upper, address lower) {
@@ -215,19 +364,5 @@ contract TrovePilotVault {
         (upper, lower) = ISortedTroves(sortedTroves).findInsertPosition(newNICR, approxHint, approxHint);
     }
 
-    function executePremiumResponse() external {
-        StrategyRules memory r = rules[msg.sender];
-        require(r.premiumModeEnabled, "DISABLED");
-        uint256 price = marketOracle.getMUSDPrice();
-        require(price > r.premiumThreshold, "NO_PREMIUM");
-        emit PremiumResponseExecuted(msg.sender, price, 0);
-    }
-
-    function executeDiscountResponse() external {
-        StrategyRules memory r = rules[msg.sender];
-        require(r.discountModeEnabled, "DISABLED");
-        uint256 price = marketOracle.getMUSDPrice();
-        require(price < r.discountThreshold, "NO_DISCOUNT");
-        emit DiscountResponseExecuted(msg.sender, price, 0);
-    }
+    // Legacy entrypoints removed in favor of runAutomation.
 }
