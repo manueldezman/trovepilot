@@ -9,8 +9,7 @@ const defaults = {
   premiumThreshold: "1.02",
   discountThreshold: "0.98",
   maxReserveUseBps: "25",
-  safetyReserveBps: "100",
-  opportunityReserveBps: "0",
+  safetyReservePct: 100,
   safetyEnabled: true,
   premiumEnabled: true,
   discountEnabled: true
@@ -28,23 +27,21 @@ export function RulesForm() {
       premiumThreshold: rules.premiumThreshold,
       discountThreshold: rules.discountThreshold,
       maxReserveUseBps: rules.maxReserveUseBps,
-      safetyReserveBps: rules.safetyReserveBps,
-      opportunityReserveBps: rules.opportunityReserveBps,
+      safetyReservePct: clampPct(Number(rules.safetyReserveBps ?? "100")),
       safetyEnabled: rules.safetyEnabled,
       premiumEnabled: rules.premiumEnabled,
       discountEnabled: rules.discountEnabled
     });
   }, [rules]);
 
+  const opportunityPct = useMemo(() => 100 - clampPct(form.safetyReservePct), [form.safetyReservePct]);
+
   const payload = useMemo(() => {
     setLocalError(null);
     try {
       const maxReserveUseBps = percentToBps(form.maxReserveUseBps);
-      const safetyReserveBps = percentToBps(form.safetyReserveBps);
-      const opportunityReserveBps = percentToBps(form.opportunityReserveBps);
-      if (safetyReserveBps + opportunityReserveBps !== 10_000n) {
-        throw new Error("Reserve split must sum to 100%");
-      }
+      const safetyReserveBps = BigInt(clampPct(form.safetyReservePct)) * 100n;
+      const opportunityReserveBps = BigInt(100 - clampPct(form.safetyReservePct)) * 100n;
 
       return {
         safetyICR: parseUnits(form.safetyICR || "0", 18),
@@ -77,18 +74,32 @@ export function RulesForm() {
           numeric
           onChange={(v) => setForm((f) => ({ ...f, maxReserveUseBps: v }))}
         />
-        <Field
-          label="Safety reserve split % (e.g. 100)"
-          value={form.safetyReserveBps}
-          numeric
-          onChange={(v) => setForm((f) => ({ ...f, safetyReserveBps: v }))}
-        />
-        <Field
-          label="Opportunity reserve split % (e.g. 0)"
-          value={form.opportunityReserveBps}
-          numeric
-          onChange={(v) => setForm((f) => ({ ...f, opportunityReserveBps: v }))}
-        />
+      </div>
+
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+          <div style={{ fontWeight: 700 }}>Reserve split</div>
+          <div style={{ color: "var(--muted)", fontSize: 12 }}>
+            Safety <span style={{ fontFamily: "var(--mono)" }}>{clampPct(form.safetyReservePct)}%</span> · Opportunity{" "}
+            <span style={{ fontFamily: "var(--mono)" }}>{opportunityPct}%</span>
+          </div>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={clampPct(form.safetyReservePct)}
+            onChange={(e) => setForm((f) => ({ ...f, safetyReservePct: clampPct(Number(e.target.value)) }))}
+            style={{ width: "100%" }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
       </div>
 
       <div style={{ marginTop: 14, display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -169,4 +180,11 @@ function percentToBps(v: string): bigint {
   const bps = whole * 100n + frac;
   if (bps > 10_000n) throw new Error("Percent must be <= 100");
   return bps;
+}
+
+function clampPct(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 100) return 100;
+  return Math.round(v);
 }
