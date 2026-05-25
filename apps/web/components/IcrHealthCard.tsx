@@ -6,6 +6,8 @@ import { formatUnits } from "viem";
 import { useMounted } from "@/hooks/useMounted";
 import { useMezoTrove } from "@/hooks/useMezoTrove";
 import { useSimulatedMarket } from "@/hooks/useSimulatedMarket";
+import { useProtocolBtcPrice } from "@/hooks/useProtocolBtcPrice";
+import { useProtocolTrove } from "@/hooks/useProtocolTrove";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 
@@ -27,6 +29,8 @@ export function IcrHealthCard() {
   const safeAddress = mounted ? address : undefined;
   const { data: sim } = useSimulatedMarket(safeAddress);
   const { data: trove, isLoading: troveLoading } = useMezoTrove(safeAddress);
+  const { data: protocolPrice } = useProtocolBtcPrice();
+  const { data: protocolTrove, isLoading: protocolLoading } = useProtocolTrove(safeAddress, protocolPrice);
 
   const { data: onchainRules } = useReadContract({
     address: addresses.vault ?? undefined,
@@ -42,21 +46,23 @@ export function IcrHealthCard() {
     return v && v > 0n ? v : 1_500_000_000_000_000_000n; // 1.50e18 default
   }, [onchainRules]);
 
-  const icr = trove?.icrRaw ?? null;
+  const protocolIcr = protocolTrove?.status === 1n && protocolTrove.debt > 0n ? protocolTrove.icr : null;
+  const simIcr = trove?.icrRaw ?? null;
+  const riskIcr = simIcr ?? protocolIcr;
   const status = useMemo(() => {
-    if (!icr) return { label: "—", tone: "muted" as const };
-    if (icr < safetyICR) return { label: "CRITICAL", tone: "critical" as const };
+    if (!riskIcr) return { label: "—", tone: "muted" as const };
+    if (riskIcr < safetyICR) return { label: "CRITICAL", tone: "critical" as const };
     // Early warning band just above the safety threshold.
-    if (icr < mulDiv(safetyICR, 115n, 100n)) return { label: "WARNING", tone: "warn" as const };
+    if (riskIcr < mulDiv(safetyICR, 115n, 100n)) return { label: "WARNING", tone: "warn" as const };
     return { label: "SAFE", tone: "safe" as const };
-  }, [icr, safetyICR]);
+  }, [riskIcr, safetyICR]);
 
   const pct = useMemo(() => {
-    if (!icr) return 0.0;
+    if (!riskIcr) return 0.0;
     // Map ICR range [1.0 .. 2.5] to [0..1] for the gauge.
-    const x = Number(icr) / 1e18;
+    const x = Number(riskIcr) / 1e18;
     return clamp01((x - 1.0) / (2.5 - 1.0));
-  }, [icr]);
+  }, [riskIcr]);
 
   const toneColor = status.tone === "critical" ? "var(--critical)" : status.tone === "warn" ? "var(--warn)" : status.tone === "safe" ? "var(--safe)" : "var(--muted)";
   const ring = `conic-gradient(${toneColor} ${Math.round(pct * 360)}deg, rgba(148,163,184,0.12) 0deg)`;
@@ -76,7 +82,7 @@ export function IcrHealthCard() {
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: 13, color: "var(--muted)", letterSpacing: 0.2 }}>Position Health</div>
           <div style={{ fontSize: 34, letterSpacing: -0.6, fontWeight: 760, lineHeight: 1 }}>
-            {icr ? formatUnits(icr, 18) : troveLoading ? "…" : "—"}
+            {protocolIcr ? formatUnits(protocolIcr, 18) : protocolLoading ? "…" : "—"}
             <span style={{ fontSize: 16, color: "var(--muted)", marginLeft: 6 }}>ICR</span>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -95,9 +101,16 @@ export function IcrHealthCard() {
               {status.label}
             </span>
             <span style={{ color: "var(--muted)", fontSize: 12 }}>
-              sim BTC: {sim?.btcPrice ? formatUnits(sim.btcPrice, 18) : "—"} • safety ICR: {formatUnits(safetyICR, 18)}
+              protocol BTC: {protocolPrice ? formatUnits(protocolPrice, 18) : "—"} • sim BTC: {sim?.btcPrice ? formatUnits(sim.btcPrice, 18) : "—"} • safety ICR:{" "}
+              {formatUnits(safetyICR, 18)}
             </span>
           </div>
+
+          {simIcr ? (
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>
+              Simulated ICR: <span style={{ fontFamily: "var(--mono)" }}>{formatUnits(simIcr, 18)}</span>
+            </div>
+          ) : null}
         </div>
 
         <div
