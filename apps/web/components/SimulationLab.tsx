@@ -14,6 +14,7 @@ export function SimulationLab() {
   const mounted = useMounted();
   const { address } = useAccount();
   const shortAddr = useMemo(() => (mounted && address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null), [address, mounted]);
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_AUTOMATION === "1";
 
   const { setBtcDown, setBtcUp, setPremium103, setDiscount097, reset, error: simError } = useSimulationActions();
   const { previewBtcDown, previewBtcUp, previewPremium, previewDiscount, runBtcDown, runBtcUp, runPremium, runDiscount, error: autoError } = useAutomation();
@@ -48,6 +49,20 @@ export function SimulationLab() {
     setResetMsg(null);
 
     try {
+      if (demoMode && (next === "btc_down" || next === "btc_up")) {
+        if (!address) throw new Error("Connect the demo wallet first");
+        const pct = next === "btc_down" ? btcDownPct : btcUpPct;
+        const res = await fetch(`/api/demo/${next === "btc_down" ? "btc-down" : "btc-up"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "preview", pct, address })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Preview failed (${res.status})`);
+        const data = await res.json();
+        setPreview(data.preview);
+        return;
+      }
+
       await writeSim();
       const p =
         next === "btc_down"
@@ -68,6 +83,21 @@ export function SimulationLab() {
   async function confirm() {
     await wrap(async () => {
       if (!scenario) return;
+      if (demoMode && (scenario === "btc_down" || scenario === "btc_up")) {
+        if (!address) throw new Error("Connect the demo wallet first");
+        const res = await fetch(`/api/demo/${scenario === "btc_down" ? "btc-down" : "btc-up"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "run", address })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Execution failed (${res.status})`);
+        const data = await res.json();
+        // Refresh the modal preview post-run so the user sees the final state.
+        setPreview(data.previewAfter ?? data.preview);
+        setModalOpen(false);
+        return;
+      }
+
       if (scenario === "btc_down") await runBtcDown();
       else if (scenario === "btc_up") await runBtcUp();
       else if (scenario === "premium") await runPremium();
@@ -88,6 +118,11 @@ export function SimulationLab() {
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
       <h2 style={{ marginTop: 0 }}>Simulation Lab</h2>
       <div style={{ marginTop: -6, color: "var(--muted)", fontSize: 13 }}>Pick a scenario, review the preview, then Confirm to execute.</div>
+      {demoMode ? (
+        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 12, border: "1px solid var(--border)", background: "rgba(56,189,248,0.10)", color: "rgba(15,23,42,0.85)", fontSize: 12 }}>
+          Demo mode: BTC Up/Down executed by local signer.
+        </div>
+      ) : null}
       <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, fontFamily: "var(--mono)" }}>
         wallet: {shortAddr ? shortAddr : mounted ? "not connected" : "…"}
       </div>
@@ -284,4 +319,3 @@ function DiscountRows({ preview }: { preview: any }) {
     </>
   );
 }
-
