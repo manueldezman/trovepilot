@@ -97,8 +97,8 @@ export async function POST(req: Request) {
     const targetICR = (r.targetICR ?? r[0]) as bigint;
     const btcDownEnabled = Boolean(r.btcDownEnabled ?? r[7]);
     let icr = 0n;
-    let triggered = false;
-    let repayAmount = 0n;
+    let triggeredCalc = false;
+    let repayAmountCalc = 0n;
     if (btcDownEnabled && next > 0n && debt > 0n) {
       icr = (await publicClient.readContract({
         address: MEZO.troveManager,
@@ -106,31 +106,31 @@ export async function POST(req: Request) {
         functionName: "getCurrentICR",
         args: [account.address, next]
       })) as bigint;
-      triggered = icr < bandLower;
-      if (triggered) {
+      triggeredCalc = icr < bandLower;
+      if (triggeredCalc) {
         const targetDebt = (coll * next) / targetICR;
         if (debt > targetDebt) {
           const desired = debt - targetDebt;
-          repayAmount = desired > musdReserveBal ? musdReserveBal : desired;
+          repayAmountCalc = desired > musdReserveBal ? musdReserveBal : desired;
         }
       }
     }
 
     const preview = {
-      triggered,
-      repayAmount: repayAmount.toString(),
+      triggered: triggeredCalc,
+      repayAmount: repayAmountCalc.toString(),
       icr: icr.toString(),
       btcPrice: next.toString(),
       bandLower: bandLower.toString(),
       targetICR: targetICR.toString(),
       musdReserve: musdReserveBal.toString()
     };
-    const triggered = preview.triggered;
+    const shouldRun = preview.triggered;
     const repayAmount = BigInt(preview.repayAmount);
 
     let runTx: `0x${string}` | null = null;
     let setTx: `0x${string}` | null = null;
-    if (mode === "run" && triggered && repayAmount > 0n) {
+    if (mode === "run" && shouldRun && repayAmount > 0n) {
       // Now apply the simulated price onchain (compounds only on run).
       setTx = await walletClient.writeContract({
         address: vault,

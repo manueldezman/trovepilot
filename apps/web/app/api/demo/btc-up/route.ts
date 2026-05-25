@@ -96,8 +96,8 @@ export async function POST(req: Request) {
     const targetICR = (r.targetICR ?? r[0]) as bigint;
     const btcUpEnabled = Boolean(r.btcUpEnabled ?? r[8]);
     let icr = 0n;
-    let triggered = false;
-    let mintAmount = 0n;
+    let triggeredCalc = false;
+    let mintAmountCalc = 0n;
     if (btcUpEnabled && next > 0n && coll > 0n) {
       icr = (await publicClient.readContract({
         address: MEZO.troveManager,
@@ -105,19 +105,19 @@ export async function POST(req: Request) {
         functionName: "getCurrentICR",
         args: [account.address, next]
       })) as bigint;
-      triggered = icr > bandUpper;
-      if (triggered) {
+      triggeredCalc = icr > bandUpper;
+      if (triggeredCalc) {
         const targetDebt = (coll * next) / targetICR;
         if (targetDebt > debt) {
           const deltaComposite = targetDebt - debt;
-          mintAmount = (deltaComposite * 10n ** 18n) / (10n ** 18n + borrowingRate);
+          mintAmountCalc = (deltaComposite * 10n ** 18n) / (10n ** 18n + borrowingRate);
         }
       }
     }
 
     const preview = {
-      triggered,
-      mintAmount: mintAmount.toString(),
+      triggered: triggeredCalc,
+      mintAmount: mintAmountCalc.toString(),
       icr: icr.toString(),
       btcPrice: next.toString(),
       bandUpper: bandUpper.toString(),
@@ -126,7 +126,9 @@ export async function POST(req: Request) {
 
     let runTx: `0x${string}` | null = null;
     let setTx: `0x${string}` | null = null;
-    if (mode === "run" && triggered && mintAmount > 0n) {
+    const shouldRun = preview.triggered;
+    const mintAmount = BigInt(preview.mintAmount);
+    if (mode === "run" && shouldRun && mintAmount > 0n) {
       setTx = await walletClient.writeContract({
         address: vault,
         abi: vaultAbi,
