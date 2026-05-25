@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAccount, useChainId, useSignTypedData, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useSignTypedData, useWalletClient, useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
 import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
+import { computeAdjustTroveDigest, computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -50,6 +51,7 @@ export function useAutomation() {
   const { address } = useAccount();
   const chainId = useChainId();
   const { signTypedDataAsync } = useSignTypedData();
+  const { data: walletClient } = useWalletClient();
   const [error, setError] = useState<Error | null>(null);
 
   const withVault = () => {
@@ -152,20 +154,22 @@ export function useAutomation() {
 
       const preview = await previewBtcDown();
       if (preview.triggered && preview.repayAmount > 0n) {
+        if (!walletClient) throw new Error("Wallet client unavailable");
         const nonce = await nonceFor();
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-        const signature = (await signTypedDataAsync({
-          domain: { name: "BorrowerOperationsSignatures", version: "1", chainId, verifyingContract: MEZO.borrowerOperationsSignatures },
-          types: {
-            RepayMUSD: [
-              { name: "amount", type: "uint256" },
-              { name: "borrower", type: "address" },
-              { name: "nonce", type: "uint256" },
-              { name: "deadline", type: "uint256" }
-            ]
-          },
-          primaryType: "RepayMUSD",
-          message: { amount: preview.repayAmount, borrower: address, nonce, deadline }
+        // Mezo's BorrowerOperationsSignatures uses a non-standard EIP-712 struct hash (abi.encodePacked),
+        // so `signTypedData` will not match. We must sign the exact digest it computes via `eth_sign`.
+        const digest = computeRepayMusdDigest({
+          amount: preview.repayAmount,
+          borrower: address,
+          nonce,
+          deadline,
+          chainId,
+          verifyingContract: MEZO.borrowerOperationsSignatures
+        });
+        const signature = (await walletClient.request({
+          method: "eth_sign",
+          params: [address, digest]
         })) as `0x${string}`;
 
         // Preflight simulation to surface revert reasons (instead of MetaMask "network fee" generic errors).
@@ -208,7 +212,7 @@ export function useAutomation() {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, nonceFor, previewBtcDown, signTypedDataAsync, writeContractAsync]);
+  }, [address, chainId, nonceFor, previewBtcDown, walletClient, writeContractAsync]);
 
   const runBtcUp = useCallback(async () => {
     setError(null);
@@ -218,34 +222,24 @@ export function useAutomation() {
 
       const preview = await previewBtcUp();
       if (preview.triggered && preview.mintAmount > 0n) {
+        if (!walletClient) throw new Error("Wallet client unavailable");
         const nonce = await nonceFor();
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-        const signature = (await signTypedDataAsync({
-          domain: { name: "BorrowerOperationsSignatures", version: "1", chainId, verifyingContract: MEZO.borrowerOperationsSignatures },
-          types: {
-            AdjustTrove: [
-              { name: "collWithdrawal", type: "uint256" },
-              { name: "debtChange", type: "uint256" },
-              { name: "isDebtIncrease", type: "bool" },
-              { name: "assetAmount", type: "uint256" },
-              { name: "borrower", type: "address" },
-              { name: "recipient", type: "address" },
-              { name: "nonce", type: "uint256" },
-              { name: "deadline", type: "uint256" }
-            ]
-          },
-          primaryType: "AdjustTrove",
-          message: {
-            collWithdrawal: 0n,
-            debtChange: preview.mintAmount,
-            isDebtIncrease: true,
-            assetAmount: 0n,
-            borrower: address,
-            // The vault is the recipient for minted MUSD.
-            recipient: withVault(),
-            nonce,
-            deadline
-          }
+        const digest = computeAdjustTroveDigest({
+          collWithdrawal: 0n,
+          debtChange: preview.mintAmount,
+          isDebtIncrease: true,
+          assetAmount: 0n,
+          borrower: address,
+          recipient: withVault(),
+          nonce,
+          deadline,
+          chainId,
+          verifyingContract: MEZO.borrowerOperationsSignatures
+        });
+        const signature = (await walletClient.request({
+          method: "eth_sign",
+          params: [address, digest]
         })) as `0x${string}`;
 
         try {
@@ -287,7 +281,7 @@ export function useAutomation() {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, nonceFor, previewBtcUp, signTypedDataAsync, writeContractAsync]);
+  }, [address, chainId, nonceFor, previewBtcUp, walletClient, writeContractAsync]);
 
   const runPremium = useCallback(async () => {
     setError(null);
