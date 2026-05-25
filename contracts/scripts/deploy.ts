@@ -22,7 +22,7 @@ async function main() {
   const oracle = await Oracle.deploy(ethers.parseUnits("100000", 18), ethers.parseUnits("1.00", 18));
   await oracle.waitForDeployment();
 
-  const Vault = await ethers.getContractFactory("TrovePilotVaultV3");
+  const Vault = await ethers.getContractFactory("TrovePilotVaultV4");
   const vault = await Vault.deploy(
     MEZO.musd,
     MEZO.troveManager,
