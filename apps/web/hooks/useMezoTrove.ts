@@ -13,10 +13,9 @@ export function useMezoTrove(user?: Address) {
 
   return useQuery({
     queryKey: ["mezoTrove", user, btcPrice?.toString() ?? "none"],
-    enabled: Boolean(user && btcPrice),
+    enabled: Boolean(user),
     queryFn: async () => {
       if (!user) throw new Error("Missing user");
-      if (!btcPrice) throw new Error("Missing simulated BTC price");
 
       const [coll, debt, status] = await Promise.all([
         publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [user] }),
@@ -24,23 +23,34 @@ export function useMezoTrove(user?: Address) {
         publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveStatus", args: [user] })
       ]);
 
-      const icr = await publicClient.readContract({
-        address: MEZO.troveManager,
-        abi: mezoTroveManagerAbi,
-        functionName: "getCurrentICR",
-        args: [user, btcPrice]
-      });
-
       const statusNum = Number(status);
-      const statusLabel = statusNum === 1 ? "Active" : statusNum === 2 ? "Closed" : `Status ${statusNum}`;
+      const isActive = statusNum === 1;
+      const statusLabel = isActive ? "Active" : "No active trove";
+
+      const debtRaw = debt as bigint;
+      const collRaw = coll as bigint;
+
+      // If the trove isn't active (or debt is zero), Mezo's `getCurrentICR` can return `uint256.max`,
+      // which renders as a huge number. Only compute ICR when we have an active trove + nonzero debt
+      // + a known BTC price.
+      let icrRaw: bigint | null = null;
+      if (isActive && debtRaw > 0n && btcPrice) {
+        const icr = await publicClient.readContract({
+          address: MEZO.troveManager,
+          abi: mezoTroveManagerAbi,
+          functionName: "getCurrentICR",
+          args: [user, btcPrice]
+        });
+        icrRaw = icr as bigint;
+      }
 
       return {
-        collateralRaw: coll as bigint,
-        debtRaw: debt as bigint,
-        icrRaw: icr as bigint,
-        collateral: `${formatUnits(coll as bigint, 18)} BTC`,
-        debt: `${formatUnits(debt as bigint, 18)} MUSD`,
-        icr: `${formatUnits(icr as bigint, 18)}x`,
+        collateralRaw: collRaw,
+        debtRaw,
+        icrRaw,
+        collateral: `${formatUnits(collRaw, 18)} BTC`,
+        debt: `${formatUnits(debtRaw, 18)} MUSD`,
+        icr: icrRaw ? `${formatUnits(icrRaw, 18)}x` : "—",
         statusLabel
       };
     }
