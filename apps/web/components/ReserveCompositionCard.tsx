@@ -6,6 +6,7 @@ import { formatUnits } from "viem";
 import { useMounted } from "@/hooks/useMounted";
 import { useVaultState } from "@/hooks/useVaultState";
 import { useSimulatedMarket } from "@/hooks/useSimulatedMarket";
+import { formatUnitsCeil } from "@/lib/format";
 
 const ONE = 10n ** 18n;
 
@@ -36,8 +37,8 @@ export function ReserveCompositionCard() {
       </div>
 
       <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-        <Row label="Stability Liquidity" value={`${formatUnits(stats.musd, 18)} MUSD`} />
-        <Row label="Opportunity Liquidity" value={`${formatUnits(stats.usdc, 18)} USDC`} />
+        <Row label="Stability Liquidity" value={`${formatUnitsCeil(stats.musd, 18, 2)} MUSD`} />
+        <Row label="Opportunity Liquidity" value={`${formatUnitsCeil(stats.usdc, 18, 2)} USDC`} />
         <Row label="Target ratio" value="60% / 40%" />
         <Row label="Current ratio" value={`${stats.musdPct.toFixed(2)}% MUSD`} />
       </div>
@@ -57,4 +58,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

@@ -12,6 +12,7 @@ import { MEZO, mezoExplorerUrl, mezoChainId } from "@/lib/mezo";
 import { useChainId } from "wagmi";
 import { mezoBorrowerOperationsAbi } from "@/lib/mezoAbis";
 import { publicClient } from "@/lib/wagmi";
+import { formatUnitsCeil } from "@/lib/format";
 
 const GAS_COMP = 200n * 10n ** 18n;
 // Minimum MUSD minted to wallet for opening a new trove (excludes 200 MUSD gas compensation).
@@ -202,7 +203,7 @@ export function OpenTroveForm() {
             <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
               <Row label="Collateral" value={trove ? `${formatUnits(trove.collateral, 18)} BTC` : "—"} />
               <Row label="Debt (composite)" value={trove ? `${formatUnits(trove.debt, 18)} MUSD` : "—"} />
-              <Row label="ICR (protocol price)" value={trove ? `${formatUnits(trove.icr, 18)}x` : "—"} />
+              <Row label="ICR (protocol price)" value={trove ? `${formatUnitsCeil(trove.icr, 18, 2)}x` : "—"} />
               <Row label="Max borrowing capacity" value={trove ? `${formatUnits(trove.maxBorrowingCapacity, 18)} MUSD` : "—"} />
             </div>
             <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
