@@ -35,7 +35,7 @@ export function LiquidCoverageCard() {
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)", height: "100%" }}>
       <div style={{ fontWeight: 750, letterSpacing: -0.2 }}>Liquid Balances − Debt</div>
       <div style={{ marginTop: 8, fontSize: 28, fontWeight: 780, letterSpacing: -0.4, lineHeight: 1.1 }}>
-        {rounded.toString()}
+        ${rounded.toString()}
       </div>
       <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
         (Spendable MUSD + MUSD Reserve + USDC Reserve) − Trove Debt

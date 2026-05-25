@@ -81,7 +81,7 @@ export function IcrHealthCard() {
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: 13, color: "var(--muted)", letterSpacing: 0.2 }}>Position Health</div>
           <div style={{ fontSize: 34, letterSpacing: -0.6, fontWeight: 760, lineHeight: 1 }}>
-            {protocolIcr ? formatUnits(protocolIcr, 18) : protocolLoading ? "…" : "—"}
+            {riskIcr ? formatUnits(riskIcr, 18) : protocolLoading || troveLoading ? "…" : "—"}
             <span style={{ fontSize: 16, color: "var(--muted)", marginLeft: 6 }}>ICR</span>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -108,6 +108,12 @@ export function IcrHealthCard() {
           {simIcr ? (
             <div style={{ color: "var(--muted)", fontSize: 12 }}>
               Simulated ICR: <span style={{ fontFamily: "var(--mono)" }}>{formatUnits(simIcr, 18)}</span>
+            </div>
+          ) : null}
+
+          {protocolIcr && simIcr ? (
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>
+              Protocol ICR: <span style={{ fontFamily: "var(--mono)" }}>{formatUnits(protocolIcr, 18)}</span>
             </div>
           ) : null}
         </div>
