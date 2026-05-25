@@ -11,7 +11,14 @@ export const mezoTroveManagerAbi = [
     ],
     outputs: [{ type: "uint256" }]
   },
-  { type: "function", name: "getTroveStatus", stateMutability: "view", inputs: [{ name: "borrower", type: "address" }], outputs: [{ type: "uint256" }] }
+  { type: "function", name: "getTroveStatus", stateMutability: "view", inputs: [{ name: "borrower", type: "address" }], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "getTroveMaxBorrowingCapacity",
+    stateMutability: "view",
+    inputs: [{ name: "borrower", type: "address" }],
+    outputs: [{ type: "uint256" }]
+  }
 ] as const;
 
 export const mezoPriceFeedAbi = [{ type: "function", name: "fetchPrice", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }] as const;

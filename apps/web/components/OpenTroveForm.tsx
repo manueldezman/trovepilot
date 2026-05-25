@@ -95,12 +95,24 @@ export function OpenTroveForm() {
 
     const headroomComposite = targetCompositeDebt - trove.debt;
     const borrowingRate = borrowParams.borrowingRate;
-    // Conservative: solve for amount where amount + fee ~= headroomComposite
-    let amount = (headroomComposite * ONE) / (ONE + borrowingRate);
+    const reasons: string[] = [];
+
+    // Capacity cap: BorrowerOps requires maxBorrowingCapacity >= debt + (amount + fee).
+    const cap = trove.maxBorrowingCapacity;
+    if (cap <= trove.debt) {
+      reasons.push("Borrowing capacity exhausted (maxBorrowingCapacity <= current debt)");
+      return { amount: 0n, reasons };
+    }
+    const capacityHeadroom = cap - trove.debt;
+
+    // Conservative: solve for amount where amount + fee ~= headroom.
+    const maxByICR = (headroomComposite * ONE) / (ONE + borrowingRate);
+    const maxByCapacity = (capacityHeadroom * ONE) / (ONE + borrowingRate);
+    let amount = maxByICR < maxByCapacity ? maxByICR : maxByCapacity;
+
     // Safety buffer (5%) to avoid rounding/fee edge reverts.
     amount = (amount * 95n) / 100n;
 
-    const reasons: string[] = [];
     if (amount < MIN_MINTED) reasons.push("Minimum mint increment is 2000 MUSD");
     return { amount, reasons };
   }, [borrowParams, icrPct, protocolPrice, trove]);
@@ -172,6 +184,7 @@ export function OpenTroveForm() {
               <Row label="Collateral" value={trove ? `${formatUnits(trove.collateral, 18)} BTC` : "—"} />
               <Row label="Debt (composite)" value={trove ? `${formatUnits(trove.debt, 18)} MUSD` : "—"} />
               <Row label="ICR (protocol price)" value={trove ? `${formatUnits(trove.icr, 18)}x` : "—"} />
+              <Row label="Max borrowing capacity" value={trove ? `${formatUnits(trove.maxBorrowingCapacity, 18)} MUSD` : "—"} />
             </div>
           </div>
 

@@ -11,6 +11,7 @@ export type ProtocolTrove = {
   debt: bigint;
   icr: bigint;
   status: bigint;
+  maxBorrowingCapacity: bigint;
 };
 
 export function useProtocolTrove(user?: Address, price?: bigint) {
@@ -21,15 +22,15 @@ export function useProtocolTrove(user?: Address, price?: bigint) {
     queryFn: async (): Promise<ProtocolTrove> => {
       if (!user) throw new Error("Missing user");
       if (!price) throw new Error("Missing price");
-      const [collateral, debt, status, icr] = await Promise.all([
+      const [collateral, debt, status, icr, maxBorrowingCapacity] = await Promise.all([
         publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [user] }) as Promise<bigint>,
         publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [user] }) as Promise<bigint>,
         publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveStatus", args: [user] }) as Promise<bigint>,
-        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getCurrentICR", args: [user, price] }) as Promise<bigint>
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getCurrentICR", args: [user, price] }) as Promise<bigint>,
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveMaxBorrowingCapacity", args: [user] }) as Promise<bigint>
       ]);
 
-      return { collateral, debt, status, icr };
+      return { collateral, debt, status, icr, maxBorrowingCapacity };
     }
   });
 }
-
