@@ -14,7 +14,8 @@ import { mezoBorrowerOperationsAbi } from "@/lib/mezoAbis";
 import { publicClient } from "@/lib/wagmi";
 
 const GAS_COMP = 200n * 10n ** 18n;
-const MIN_MINTED = 2000n * 10n ** 18n;
+// Minimum MUSD minted to wallet (excludes 200 MUSD gas compensation).
+const MIN_MINTED = 1800n * 10n ** 18n;
 const ONE = 10n ** 18n;
 
 export function OpenTroveForm() {
@@ -70,7 +71,7 @@ export function OpenTroveForm() {
     const fee = netDebt > debtAmount ? netDebt - debtAmount : 0n;
 
     const reasons: string[] = [];
-    if (debtAmount < MIN_MINTED) reasons.push("Minimum borrow is 2000 MUSD");
+    if (debtAmount < MIN_MINTED) reasons.push("Minimum borrow is 1800 MUSD");
     if (netDebt < borrowParams.minNetDebt) reasons.push(`Below Mezo minNetDebt (${formatUnits(borrowParams.minNetDebt, 18)} MUSD)`);
 
     return { targetICR, compositeDebt, netDebt, debtAmount, fee, reasons };
@@ -113,7 +114,7 @@ export function OpenTroveForm() {
     // Safety buffer (5%) to avoid rounding/fee edge reverts.
     amount = (amount * 95n) / 100n;
 
-    if (amount < MIN_MINTED) reasons.push("Minimum mint increment is 2000 MUSD");
+    if (amount < MIN_MINTED) reasons.push("Minimum mint increment is 1800 MUSD");
     return { amount, reasons };
   }, [borrowParams, icrPct, protocolPrice, trove]);
 
@@ -148,7 +149,7 @@ export function OpenTroveForm() {
     if (chainId !== mezoChainId) return setActionError(`Wrong network (expected chainId ${mezoChainId})`);
     const amt = mintMore?.amount ?? 0n;
     if (amt <= 0n) return setActionError("No mint headroom for selected ICR");
-    if (amt < MIN_MINTED) return setActionError("Minimum mint increment is 2000 MUSD");
+    if (amt < MIN_MINTED) return setActionError("Minimum mint increment is 1800 MUSD");
     try {
       const sim = await publicClient.simulateContract({
         account: address,
@@ -322,7 +323,7 @@ export function OpenTroveForm() {
                 color: "var(--text)"
               }}
             >
-              {isPending ? "Submitting…" : belowMinMinted ? "Minimum 2000 MUSD required" : "Open trove + mint MUSD"}
+              {isPending ? "Submitting…" : belowMinMinted ? "Minimum 1800 MUSD required" : "Open trove + mint MUSD"}
             </button>
             {txUrl ? (
               <a href={txUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline", color: "var(--muted)", fontSize: 13 }}>
