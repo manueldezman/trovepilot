@@ -168,9 +168,38 @@ export function useAutomation() {
           message: { amount: preview.repayAmount, borrower: address, nonce, deadline }
         })) as `0x${string}`;
 
+        // Preflight simulation to surface revert reasons (instead of MetaMask "network fee" generic errors).
+        try {
+          await publicClient.simulateContract({
+            account: address,
+            address: withVault(),
+            abi: vaultAbi,
+            functionName: "runBtcDown",
+            args: [signature, deadline]
+          });
+        } catch (e) {
+          const err: any = e;
+          const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
+          throw new Error(`BTC Down repay would fail: ${msg}`);
+        }
+
         const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: [signature, deadline] });
         await publicClient.waitForTransactionReceipt({ hash });
         return;
+      }
+
+      try {
+        await publicClient.simulateContract({
+          account: address,
+          address: withVault(),
+          abi: vaultAbi,
+          functionName: "runBtcDown",
+          args: ["0x", 0n]
+        });
+      } catch (e) {
+        const err: any = e;
+        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
+        throw new Error(`BTC Down would fail: ${msg}`);
       }
 
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: ["0x", 0n] });
@@ -219,9 +248,37 @@ export function useAutomation() {
           }
         })) as `0x${string}`;
 
+        try {
+          await publicClient.simulateContract({
+            account: address,
+            address: withVault(),
+            abi: vaultAbi,
+            functionName: "runBtcUp",
+            args: [signature, deadline]
+          });
+        } catch (e) {
+          const err: any = e;
+          const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
+          throw new Error(`BTC Up mint would fail: ${msg}`);
+        }
+
         const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: [signature, deadline] });
         await publicClient.waitForTransactionReceipt({ hash });
         return;
+      }
+
+      try {
+        await publicClient.simulateContract({
+          account: address,
+          address: withVault(),
+          abi: vaultAbi,
+          functionName: "runBtcUp",
+          args: ["0x", 0n]
+        });
+      } catch (e) {
+        const err: any = e;
+        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
+        throw new Error(`BTC Up would fail: ${msg}`);
       }
 
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: ["0x", 0n] });
@@ -260,4 +317,3 @@ export function useAutomation() {
 
   return { previewBtcDown, previewBtcUp, previewPremium, previewDiscount, runBtcDown, runBtcUp, runPremium, runDiscount, error };
 }
-
