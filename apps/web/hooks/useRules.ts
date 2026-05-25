@@ -35,16 +35,40 @@ export function useRules() {
   const rules = useMemo(() => {
     if (!data) return null;
     const r = data as any;
-    return {
-      safetyICR: formatUnits((r.safetyICR ?? 0n) as bigint, 18),
-      premiumThreshold: formatUnits((r.premiumThreshold ?? 0n) as bigint, 18),
-      discountThreshold: formatUnits((r.discountThreshold ?? 0n) as bigint, 18),
-      maxReserveUseBps: bpsToPercentString((r.maxReserveUseBps ?? 0n) as bigint),
-      safetyReserveBps: bpsToPercentString((r.safetyReserveBps ?? 0n) as bigint),
-      opportunityReserveBps: bpsToPercentString((r.opportunityReserveBps ?? 0n) as bigint),
+    const raw = {
+      safetyICR: (r.safetyICR ?? 0n) as bigint,
+      premiumThreshold: (r.premiumThreshold ?? 0n) as bigint,
+      discountThreshold: (r.discountThreshold ?? 0n) as bigint,
+      maxReserveUseBps: (r.maxReserveUseBps ?? 0n) as bigint,
+      safetyReserveBps: (r.safetyReserveBps ?? 0n) as bigint,
+      opportunityReserveBps: (r.opportunityReserveBps ?? 0n) as bigint,
       safetyEnabled: Boolean(r.safetyEnabled),
       premiumEnabled: Boolean(r.premiumEnabled),
       discountEnabled: Boolean(r.discountEnabled)
+    };
+
+    const looksUnset =
+      raw.safetyICR === 0n &&
+      raw.premiumThreshold === 0n &&
+      raw.discountThreshold === 0n &&
+      raw.maxReserveUseBps === 0n &&
+      raw.safetyReserveBps === 0n &&
+      raw.opportunityReserveBps === 0n &&
+      raw.safetyEnabled === false &&
+      raw.premiumEnabled === false &&
+      raw.discountEnabled === false;
+
+    if (looksUnset) return null;
+    return {
+      safetyICR: formatUnits(raw.safetyICR, 18),
+      premiumThreshold: formatUnits(raw.premiumThreshold, 18),
+      discountThreshold: formatUnits(raw.discountThreshold, 18),
+      maxReserveUseBps: bpsToPercentString(raw.maxReserveUseBps),
+      safetyReserveBps: bpsToPercentString(raw.safetyReserveBps),
+      opportunityReserveBps: bpsToPercentString(raw.opportunityReserveBps),
+      safetyEnabled: raw.safetyEnabled,
+      premiumEnabled: raw.premiumEnabled,
+      discountEnabled: raw.discountEnabled
     };
   }, [data]);
 
