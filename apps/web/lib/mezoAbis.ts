@@ -34,6 +34,27 @@ export const mezoBorrowerOperationsAbi = [
   },
   {
     type: "function",
+    name: "addColl",
+    stateMutability: "payable",
+    inputs: [
+      { name: "_upperHint", type: "address" },
+      { name: "_lowerHint", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "withdrawMUSD",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_amount", type: "uint256" },
+      { name: "_upperHint", type: "address" },
+      { name: "_lowerHint", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
     name: "borrowingRate",
     stateMutability: "view",
     inputs: [],

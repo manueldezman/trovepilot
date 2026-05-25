@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useAccount, useChainId, useWriteContract } from "wagmi";
 import { MEZO, mezoExplorerUrl, mezoChainId } from "@/lib/mezo";
-import { mezoBorrowerOperationsAbi } from "@/lib/mezoAbis";
+import { mezoBorrowerOperationsAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
+import { publicClient } from "@/lib/wagmi";
 
 const MIN_MINTED_MUSD = 2000n * 10n ** 18n;
 
@@ -32,6 +33,14 @@ export function useOpenTrove() {
 
       setIsPending(true);
       try {
+        const status = (await publicClient.readContract({
+          address: MEZO.troveManager,
+          abi: mezoTroveManagerAbi,
+          functionName: "getTroveStatus",
+          args: [address]
+        })) as bigint;
+        if (status === 1n) throw new Error("Trove already active. Use Add Collateral or Mint More instead of opening a new trove.");
+
         const hash = await writeContractAsync({
           address: MEZO.borrowerOperations,
           abi: mezoBorrowerOperationsAbi,
