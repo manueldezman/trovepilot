@@ -62,6 +62,16 @@ export const mezoBorrowerOperationsAbi = [
   },
   {
     type: "function",
+    name: "refinance",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_upperHint", type: "address" },
+      { name: "_lowerHint", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
     name: "borrowingRate",
     stateMutability: "view",
     inputs: [],

@@ -168,6 +168,26 @@ export function OpenTroveForm() {
     }
   }
 
+  async function doRefinance() {
+    setActionError(null);
+    setActionTx(null);
+    if (!isConnected || !address) return setActionError("Connect a wallet first");
+    if (chainId !== mezoChainId) return setActionError(`Wrong network (expected chainId ${mezoChainId})`);
+    try {
+      const sim = await publicClient.simulateContract({
+        account: address,
+        address: MEZO.borrowerOperations,
+        abi: mezoBorrowerOperationsAbi,
+        functionName: "refinance",
+        args: ["0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000"]
+      });
+      const hash = await writeContractAsync({ ...(sim.request as any), gas: sim.request.gas } as any);
+      setActionTx(hash);
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
+  }
+
   return (
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
       <h2 style={{ marginTop: 0 }}>Open Trove (BTC → mint MUSD)</h2>
@@ -185,6 +205,23 @@ export function OpenTroveForm() {
               <Row label="Debt (composite)" value={trove ? `${formatUnits(trove.debt, 18)} MUSD` : "—"} />
               <Row label="ICR (protocol price)" value={trove ? `${formatUnits(trove.icr, 18)}x` : "—"} />
               <Row label="Max borrowing capacity" value={trove ? `${formatUnits(trove.maxBorrowingCapacity, 18)} MUSD` : "—"} />
+            </div>
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={doRefinance}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--border)",
+                  background: "rgba(255,255,255,0.03)",
+                  color: "var(--text)"
+                }}
+              >
+                Refinance (update capacity)
+              </button>
+              <div style={{ alignSelf: "center", color: "var(--muted)", fontSize: 12 }}>
+                Use after adding collateral to refresh max borrowing capacity.
+              </div>
             </div>
           </div>
 
