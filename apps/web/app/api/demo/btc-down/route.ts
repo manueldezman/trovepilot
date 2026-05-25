@@ -4,7 +4,7 @@ import { privateKeyToAccount, sign } from "viem/accounts";
 import { defineChain } from "viem";
 import { MEZO, mezoChainId, mezoRpcUrl } from "@/lib/mezo";
 import { vaultAbi } from "@/lib/trovePilotAbis";
-import { mezoPriceFeedAbi, mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
+import { mezoPriceFeedAbi, mezoBorrowerOperationsSignaturesAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
 import { addresses } from "@/lib/addresses";
 
@@ -76,33 +76,71 @@ export async function POST(req: Request) {
     const publicClient = createPublicClient({ chain, transport: http(mezoRpcUrl) });
     const walletClient = createWalletClient({ chain, transport: http(mezoRpcUrl), account });
 
+    const pct = clampPct(body.pct);
+    const [simBtc, protocolBtc] = await Promise.all([
+      publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "getSimulatedBTCPrice", args: [account.address] }) as Promise<bigint>,
+      publicClient.readContract({ address: MEZO.priceFeed, abi: mezoPriceFeedAbi, functionName: "fetchPrice" }) as Promise<bigint>
+    ]);
+    const base = simBtc > 0n ? simBtc : protocolBtc;
+    const next = (base * BigInt(100 - pct)) / 100n;
+
+    // Preview should be side-effect free. Compute the same logic as the vault preview using `next` as btc price.
+    const [rules, musdReserveBal, coll, debt] = await Promise.all([
+      publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "getRules", args: [account.address] }) as Promise<any>,
+      publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "getMusdReserve", args: [account.address] }) as Promise<bigint>,
+      publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [account.address] }) as Promise<bigint>,
+      publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [account.address] }) as Promise<bigint>
+    ]);
+
+    const r: any = rules;
+    const bandLower = (r.bandLowerICR ?? r[1]) as bigint;
+    const targetICR = (r.targetICR ?? r[0]) as bigint;
+    const btcDownEnabled = Boolean(r.btcDownEnabled ?? r[7]);
+    let icr = 0n;
+    let triggered = false;
+    let repayAmount = 0n;
+    if (btcDownEnabled && next > 0n && debt > 0n) {
+      icr = (await publicClient.readContract({
+        address: MEZO.troveManager,
+        abi: mezoTroveManagerAbi,
+        functionName: "getCurrentICR",
+        args: [account.address, next]
+      })) as bigint;
+      triggered = icr < bandLower;
+      if (triggered) {
+        const targetDebt = (coll * next) / targetICR;
+        if (debt > targetDebt) {
+          const desired = debt - targetDebt;
+          repayAmount = desired > musdReserveBal ? musdReserveBal : desired;
+        }
+      }
+    }
+
+    const preview = {
+      triggered,
+      repayAmount: repayAmount.toString(),
+      icr: icr.toString(),
+      btcPrice: next.toString(),
+      bandLower: bandLower.toString(),
+      targetICR: targetICR.toString(),
+      musdReserve: musdReserveBal.toString()
+    };
+    const triggered = preview.triggered;
+    const repayAmount = BigInt(preview.repayAmount);
+
+    let runTx: `0x${string}` | null = null;
     let setTx: `0x${string}` | null = null;
-    if (mode === "preview") {
-      const pct = clampPct(body.pct);
-      const [simBtc, protocolBtc] = await Promise.all([
-        publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "getSimulatedBTCPrice", args: [account.address] }) as Promise<bigint>,
-        publicClient.readContract({ address: MEZO.priceFeed, abi: mezoPriceFeedAbi, functionName: "fetchPrice" }) as Promise<bigint>
-      ]);
-      const base = simBtc > 0n ? simBtc : protocolBtc;
-      const next = (base * BigInt(100 - pct)) / 100n;
+    if (mode === "run" && triggered && repayAmount > 0n) {
+      // Now apply the simulated price onchain (compounds only on run).
       setTx = await walletClient.writeContract({
         address: vault,
         abi: vaultAbi,
         functionName: "setSimulatedBTCPrice",
         args: [next],
-        // Avoid occasional RPC underestimation / EIP-7623 floor issues during hackathon demos.
         gas: 250_000n
       });
       await publicClient.waitForTransactionReceipt({ hash: setTx });
-    }
 
-    const previewRaw = (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any;
-    const preview = normalizePreview(previewRaw);
-    const triggered = preview.triggered;
-    const repayAmount = BigInt(preview.repayAmount);
-
-    let runTx: `0x${string}` | null = null;
-    if (mode === "run" && triggered && repayAmount > 0n) {
       const nonce = (await publicClient.readContract({
         address: MEZO.borrowerOperationsSignatures,
         abi: mezoBorrowerOperationsSignaturesAbi,
@@ -130,11 +168,12 @@ export async function POST(req: Request) {
       await publicClient.waitForTransactionReceipt({ hash: runTx });
     }
 
-    const previewAfterRaw =
+    const previewAfter =
       mode === "run"
-        ? ((await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any)
+        ? normalizePreview(
+            (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any
+          )
         : null;
-    const previewAfter = previewAfterRaw ? normalizePreview(previewAfterRaw) : null;
 
     return NextResponse.json({
       mode,

@@ -105,10 +105,11 @@ export function SimulationLab() {
       if (!scenario) return;
       if (demoMode && (scenario === "btc_down" || scenario === "btc_up")) {
         if (!address) throw new Error("Connect the demo wallet first");
+        const pct = scenario === "btc_down" ? btcDownPct : btcUpPct;
         const res = await fetch(`/api/demo/${scenario === "btc_down" ? "btc-down" : "btc-up"}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mode: "run", address })
+          body: JSON.stringify({ mode: "run", pct, address })
         });
         if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Execution failed (${res.status})`);
         const data = await res.json();
