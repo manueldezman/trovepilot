@@ -5,6 +5,8 @@ import { useAccount, useChainId, useWriteContract } from "wagmi";
 import { MEZO, mezoExplorerUrl, mezoChainId } from "@/lib/mezo";
 import { mezoBorrowerOperationsAbi } from "@/lib/mezoAbis";
 
+const MIN_MINTED_MUSD = 2000n * 10n ** 18n;
+
 export function useOpenTrove() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -26,6 +28,7 @@ export function useOpenTrove() {
       if (chainId !== mezoChainId) throw new Error(`Wrong network (expected chainId ${mezoChainId})`);
       if (collateralValue <= 0n) throw new Error("Collateral must be > 0");
       if (debtAmount <= 0n) throw new Error("Debt must be > 0");
+      if (debtAmount < MIN_MINTED_MUSD) throw new Error("Minimum borrow is 2000 MUSD");
 
       setIsPending(true);
       try {
@@ -49,4 +52,3 @@ export function useOpenTrove() {
 
   return { openTrove, isPending, error, txUrl };
 }
-

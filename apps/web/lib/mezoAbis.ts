@@ -31,5 +31,19 @@ export const mezoBorrowerOperationsAbi = [
       { name: "_lowerHint", type: "address" }
     ],
     outputs: []
+  },
+  {
+    type: "function",
+    name: "borrowingRate",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "minNetDebt",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
   }
 ] as const;
