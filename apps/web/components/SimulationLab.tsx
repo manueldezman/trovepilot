@@ -10,6 +10,26 @@ import { PreviewModal } from "@/components/PreviewModal";
 
 type Scenario = "btc_down" | "btc_up" | "premium" | "discount";
 
+function reviveBtcPreview(p: any): any {
+  if (!p || typeof p !== "object") return p;
+  const asBigint = (x: any) => (typeof x === "string" && /^[0-9]+$/.test(x) ? BigInt(x) : x);
+  // Preview structs are returned as named object props by viem in most cases; we only rely on names here.
+  const keys = [
+    "repayAmount",
+    "mintAmount",
+    "icr",
+    "btcPrice",
+    "bandLower",
+    "bandUpper",
+    "targetICR",
+    "musdReserve"
+  ];
+  const out: any = { ...p };
+  for (const k of keys) out[k] = asBigint(out[k]);
+  if (typeof out.triggered === "string") out.triggered = out.triggered === "true";
+  return out;
+}
+
 export function SimulationLab() {
   const mounted = useMounted();
   const { address } = useAccount();
@@ -59,7 +79,7 @@ export function SimulationLab() {
         });
         if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Preview failed (${res.status})`);
         const data = await res.json();
-        setPreview(data.preview);
+        setPreview(reviveBtcPreview(data.preview));
         return;
       }
 
@@ -93,7 +113,7 @@ export function SimulationLab() {
         if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Execution failed (${res.status})`);
         const data = await res.json();
         // Refresh the modal preview post-run so the user sees the final state.
-        setPreview(data.previewAfter ?? data.preview);
+        setPreview(reviveBtcPreview(data.previewAfter ?? data.preview));
         setModalOpen(false);
         return;
       }

@@ -25,6 +25,17 @@ function clampPct(v: unknown): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
+function jsonSafe<T>(v: T): any {
+  if (typeof v === "bigint") return v.toString();
+  if (Array.isArray(v)) return v.map(jsonSafe);
+  if (v && typeof v === "object") {
+    const out: any = {};
+    for (const [k, val] of Object.entries(v as any)) out[k] = jsonSafe(val);
+    return out;
+  }
+  return v;
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
@@ -100,11 +111,10 @@ export async function POST(req: Request) {
       demoAddress: account.address,
       setTx,
       runTx,
-      preview,
-      previewAfter
+      preview: jsonSafe(preview),
+      previewAfter: jsonSafe(previewAfter)
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message ?? "Unknown error" }, { status: 500 });
   }
 }
-
