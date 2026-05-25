@@ -105,6 +105,36 @@ export const vaultAbi = [
       { name: "discountActive", type: "bool" }
     ]
   },
+  {
+    type: "function",
+    name: "previewSafety",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      { name: "triggered", type: "bool" },
+      { name: "repayAmount", type: "uint256" },
+      { name: "icr", type: "uint256" },
+      { name: "btcPrice", type: "uint256" },
+      { name: "safetyICR", type: "uint256" },
+      { name: "safetyReserveBalance", type: "uint256" }
+    ]
+  },
+  {
+    type: "function",
+    name: "previewPeg",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      { name: "musdPrice", type: "uint256" },
+      { name: "premiumActive", type: "bool" },
+      { name: "discountActive", type: "bool" },
+      { name: "premiumThreshold", type: "uint256" },
+      { name: "discountThreshold", type: "uint256" },
+      { name: "opportunityReserveBalance", type: "uint256" },
+      { name: "estGain", type: "uint256" },
+      { name: "estSavings", type: "uint256" }
+    ]
+  },
   { type: "function", name: "setSimulatedBTCPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
   { type: "function", name: "setSimulatedMUSDPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
   { type: "function", name: "resetSimulatedMarket", stateMutability: "nonpayable", inputs: [], outputs: [] },
@@ -120,6 +150,17 @@ export const vaultAbi = [
     ],
     outputs: []
   },
+  {
+    type: "function",
+    name: "runSafety",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "signature", type: "bytes" },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: []
+  },
+  { type: "function", name: "runPeg", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "event", name: "ReserveDeposited", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: true, name: "token", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
   { type: "event", name: "ReserveWithdrawn", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: true, name: "token", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
   { type: "event", name: "RulesUpdated", inputs: [{ indexed: true, name: "user", type: "address" }], anonymous: false },
@@ -150,6 +191,29 @@ export const vaultAbi = [
   },
   {
     type: "event",
+    name: "SafetyRan",
+    inputs: [
+      { indexed: true, name: "user", type: "address" },
+      { indexed: false, name: "btcPrice", type: "uint256" },
+      { indexed: false, name: "icrBefore", type: "uint256" },
+      { indexed: false, name: "icrAfter", type: "uint256" },
+      { indexed: false, name: "repayAmount", type: "uint256" }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "PegRan",
+    inputs: [
+      { indexed: true, name: "user", type: "address" },
+      { indexed: false, name: "musdPrice", type: "uint256" },
+      { indexed: false, name: "premiumActive", type: "bool" },
+      { indexed: false, name: "discountActive", type: "bool" }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "AutomationRan",
     inputs: [
       { indexed: true, name: "user", type: "address" },
@@ -164,7 +228,6 @@ export const vaultAbi = [
       { indexed: false, name: "mask", type: "uint256" }
     ],
     anonymous: false
-  }
-  ,
+  },
   { type: "event", name: "SimulatedMarketUpdated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "btcPrice", type: "uint256" }, { indexed: false, name: "musdPrice", type: "uint256" }], anonymous: false }
 ] as const;

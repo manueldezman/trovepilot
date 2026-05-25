@@ -62,6 +62,20 @@ function formatDetail(eventName: string, args: any): string {
         `Est. savings: ${fmt18(a.estSavings)} MUSD`
       ].join("\n");
     }
+    case "SafetyRan": {
+      return [
+        `BTC: ${fmt18(a.btcPrice)}`,
+        `ICR: ${fmt18(a.icrBefore)}x → ${fmt18(a.icrAfter)}x`,
+        `Repaid: ${fmt18(a.repayAmount)} MUSD`
+      ].join("\n");
+    }
+    case "PegRan": {
+      return [
+        `MUSD price: ${fmt18(a.musdPrice)}`,
+        `Premium active: ${a.premiumActive ? "Yes" : "No"}`,
+        `Discount active: ${a.discountActive ? "Yes" : "No"}`
+      ].join("\n");
+    }
     case "AutomationRan": {
       return [
         `BTC: ${fmt18(a.btcPrice)} | MUSD: ${fmt18(a.musdPrice)}`,
