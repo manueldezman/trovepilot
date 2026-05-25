@@ -85,7 +85,14 @@ export async function POST(req: Request) {
       ]);
       const base = simBtc > 0n ? simBtc : protocolBtc;
       const next = (base * BigInt(100 - pct)) / 100n;
-      setTx = await walletClient.writeContract({ address: vault, abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
+      setTx = await walletClient.writeContract({
+        address: vault,
+        abi: vaultAbi,
+        functionName: "setSimulatedBTCPrice",
+        args: [next],
+        // Avoid occasional RPC underestimation / EIP-7623 floor issues during hackathon demos.
+        gas: 250_000n
+      });
       await publicClient.waitForTransactionReceipt({ hash: setTx });
     }
 
@@ -113,7 +120,13 @@ export async function POST(req: Request) {
       });
       const signature = (await sign({ hash: digest, privateKey: pk, to: "hex" })) as `0x${string}`;
 
-      runTx = await walletClient.writeContract({ address: vault, abi: vaultAbi, functionName: "runBtcDown", args: [signature, deadline] });
+      runTx = await walletClient.writeContract({
+        address: vault,
+        abi: vaultAbi,
+        functionName: "runBtcDown",
+        args: [signature, deadline],
+        gas: 800_000n
+      });
       await publicClient.waitForTransactionReceipt({ hash: runTx });
     }
 
