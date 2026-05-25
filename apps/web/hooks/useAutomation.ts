@@ -167,10 +167,18 @@ export function useAutomation() {
           chainId,
           verifyingContract: MEZO.borrowerOperationsSignatures
         });
-        const signature = (await walletClient.request({
-          method: "eth_sign",
-          params: [address, digest]
-        })) as `0x${string}`;
+        let signature: `0x${string}`;
+        try {
+          signature = (await walletClient.request({ method: "eth_sign", params: [address, digest] })) as `0x${string}`;
+        } catch (e: any) {
+          const msg = (e?.shortMessage || e?.message || "").toLowerCase();
+          if (msg.includes("does not exist") || msg.includes("not available") || msg.includes("method not found")) {
+            throw new Error(
+              "Your wallet does not support `eth_sign`. Mezo BorrowerOperationsSignatures requires a raw digest signature for BTC Down/Up. Use MetaMask with eth_sign enabled (Advanced settings) or a wallet that supports eth_sign."
+            );
+          }
+          throw e;
+        }
 
         // Preflight simulation to surface revert reasons (instead of MetaMask "network fee" generic errors).
         try {
@@ -237,10 +245,18 @@ export function useAutomation() {
           chainId,
           verifyingContract: MEZO.borrowerOperationsSignatures
         });
-        const signature = (await walletClient.request({
-          method: "eth_sign",
-          params: [address, digest]
-        })) as `0x${string}`;
+        let signature: `0x${string}`;
+        try {
+          signature = (await walletClient.request({ method: "eth_sign", params: [address, digest] })) as `0x${string}`;
+        } catch (e: any) {
+          const msg = (e?.shortMessage || e?.message || "").toLowerCase();
+          if (msg.includes("does not exist") || msg.includes("not available") || msg.includes("method not found")) {
+            throw new Error(
+              "Your wallet does not support `eth_sign`. Mezo BorrowerOperationsSignatures requires a raw digest signature for BTC Down/Up. Use MetaMask with eth_sign enabled (Advanced settings) or a wallet that supports eth_sign."
+            );
+          }
+          throw e;
+        }
 
         try {
           await publicClient.simulateContract({
