@@ -36,6 +36,18 @@ function jsonSafe<T>(v: T): any {
   return v;
 }
 
+function normalizePreview(p: any) {
+  return {
+    triggered: Boolean(p?.triggered ?? p?.[0]),
+    repayAmount: ((p?.repayAmount ?? p?.[1]) as bigint).toString(),
+    icr: ((p?.icr ?? p?.[2]) as bigint).toString(),
+    btcPrice: ((p?.btcPrice ?? p?.[3]) as bigint).toString(),
+    bandLower: ((p?.bandLower ?? p?.[4]) as bigint).toString(),
+    targetICR: ((p?.targetICR ?? p?.[5]) as bigint).toString(),
+    musdReserve: ((p?.musdReserve ?? p?.[6]) as bigint).toString()
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
@@ -77,9 +89,10 @@ export async function POST(req: Request) {
       await publicClient.waitForTransactionReceipt({ hash: setTx });
     }
 
-    const preview = (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any;
-    const triggered = Boolean(preview.triggered ?? preview[0]);
-    const repayAmount = (preview.repayAmount ?? preview[1]) as bigint;
+    const previewRaw = (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any;
+    const preview = normalizePreview(previewRaw);
+    const triggered = preview.triggered;
+    const repayAmount = BigInt(preview.repayAmount);
 
     let runTx: `0x${string}` | null = null;
     if (mode === "run" && triggered && repayAmount > 0n) {
@@ -104,7 +117,11 @@ export async function POST(req: Request) {
       await publicClient.waitForTransactionReceipt({ hash: runTx });
     }
 
-    const previewAfter = mode === "run" ? ((await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any) : null;
+    const previewAfterRaw =
+      mode === "run"
+        ? ((await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcDown", args: [account.address] })) as any)
+        : null;
+    const previewAfter = previewAfterRaw ? normalizePreview(previewAfterRaw) : null;
 
     return NextResponse.json({
       mode,

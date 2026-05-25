@@ -36,6 +36,17 @@ function jsonSafe<T>(v: T): any {
   return v;
 }
 
+function normalizePreview(p: any) {
+  return {
+    triggered: Boolean(p?.triggered ?? p?.[0]),
+    mintAmount: ((p?.mintAmount ?? p?.[1]) as bigint).toString(),
+    icr: ((p?.icr ?? p?.[2]) as bigint).toString(),
+    btcPrice: ((p?.btcPrice ?? p?.[3]) as bigint).toString(),
+    bandUpper: ((p?.bandUpper ?? p?.[4]) as bigint).toString(),
+    targetICR: ((p?.targetICR ?? p?.[5]) as bigint).toString()
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
@@ -77,9 +88,10 @@ export async function POST(req: Request) {
       await publicClient.waitForTransactionReceipt({ hash: setTx });
     }
 
-    const preview = (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcUp", args: [account.address] })) as any;
-    const triggered = Boolean(preview.triggered ?? preview[0]);
-    const mintAmount = (preview.mintAmount ?? preview[1]) as bigint;
+    const previewRaw = (await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcUp", args: [account.address] })) as any;
+    const preview = normalizePreview(previewRaw);
+    const triggered = preview.triggered;
+    const mintAmount = BigInt(preview.mintAmount);
 
     let runTx: `0x${string}` | null = null;
     if (mode === "run" && triggered && mintAmount > 0n) {
@@ -108,7 +120,11 @@ export async function POST(req: Request) {
       await publicClient.waitForTransactionReceipt({ hash: runTx });
     }
 
-    const previewAfter = mode === "run" ? ((await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcUp", args: [account.address] })) as any) : null;
+    const previewAfterRaw =
+      mode === "run"
+        ? ((await publicClient.readContract({ address: vault, abi: vaultAbi, functionName: "previewBtcUp", args: [account.address] })) as any)
+        : null;
+    const previewAfter = previewAfterRaw ? normalizePreview(previewAfterRaw) : null;
 
     return NextResponse.json({
       mode,
