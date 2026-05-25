@@ -9,7 +9,7 @@ const defaults = {
   premiumThreshold: "1.02",
   discountThreshold: "0.98",
   maxReserveUseBps: "25",
-  safetyReservePct: 100,
+  safetyReservePct: 50,
   safetyEnabled: true,
   premiumEnabled: true,
   discountEnabled: true
