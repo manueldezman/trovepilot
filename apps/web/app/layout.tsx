@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
+import { SidebarNav } from "@/components/SidebarNav";
 
 export const metadata = {
   title: "TrovePilot",
@@ -11,7 +12,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <div className="appShell">
+            <SidebarNav />
+            <div className="appMain">{children}</div>
+          </div>
+        </Providers>
       </body>
     </html>
   );
