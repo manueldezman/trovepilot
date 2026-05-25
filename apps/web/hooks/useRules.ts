@@ -7,14 +7,16 @@ import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 
 type RulesPayload = {
-  minICR: bigint;
+  safetyICR: bigint;
   repayBps: bigint;
   premiumThreshold: bigint;
   discountThreshold: bigint;
   maxReserveUseBps: bigint;
-  collateralDefenseEnabled: boolean;
-  premiumModeEnabled: boolean;
-  discountModeEnabled: boolean;
+  safetyReserveBps: bigint;
+  opportunityReserveBps: bigint;
+  safetyEnabled: boolean;
+  premiumEnabled: boolean;
+  discountEnabled: boolean;
 };
 
 export function useRules() {
@@ -35,14 +37,16 @@ export function useRules() {
     if (!data) return null;
     const r = data as any;
     return {
-      minICR: formatUnits((r.minICR ?? 0n) as bigint, 18),
+      safetyICR: formatUnits((r.safetyICR ?? 0n) as bigint, 18),
       repayBps: (r.repayBps ?? 0n).toString(),
       premiumThreshold: formatUnits((r.premiumThreshold ?? 0n) as bigint, 18),
       discountThreshold: formatUnits((r.discountThreshold ?? 0n) as bigint, 18),
       maxReserveUseBps: r.maxReserveUseBps?.toString?.() ?? "0",
-      collateralDefenseEnabled: Boolean(r.collateralDefenseEnabled),
-      premiumModeEnabled: Boolean(r.premiumModeEnabled),
-      discountModeEnabled: Boolean(r.discountModeEnabled)
+      safetyReserveBps: r.safetyReserveBps?.toString?.() ?? "0",
+      opportunityReserveBps: r.opportunityReserveBps?.toString?.() ?? "0",
+      safetyEnabled: Boolean(r.safetyEnabled),
+      premiumEnabled: Boolean(r.premiumEnabled),
+      discountEnabled: Boolean(r.discountEnabled)
     };
   }, [data]);
 

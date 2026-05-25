@@ -49,6 +49,9 @@ export const vaultAbi = [
     ],
     outputs: [{ type: "uint256" }]
   },
+  { type: "function", name: "getSafetyReserve", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getOpportunityReserve", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getOpportunityMusdAcquired", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
   {
     type: "function",
     name: "setRules",
@@ -58,14 +61,16 @@ export const vaultAbi = [
         name: "rules",
         type: "tuple",
         components: [
-          { name: "minICR", type: "uint256" },
+          { name: "safetyICR", type: "uint256" },
           { name: "repayBps", type: "uint256" },
           { name: "premiumThreshold", type: "uint256" },
           { name: "discountThreshold", type: "uint256" },
           { name: "maxReserveUseBps", type: "uint256" },
-          { name: "collateralDefenseEnabled", type: "bool" },
-          { name: "premiumModeEnabled", type: "bool" },
-          { name: "discountModeEnabled", type: "bool" }
+          { name: "safetyReserveBps", type: "uint256" },
+          { name: "opportunityReserveBps", type: "uint256" },
+          { name: "safetyEnabled", type: "bool" },
+          { name: "premiumEnabled", type: "bool" },
+          { name: "discountEnabled", type: "bool" }
         ]
       }
     ],
@@ -80,56 +85,88 @@ export const vaultAbi = [
       {
         type: "tuple",
         components: [
-          { name: "minICR", type: "uint256" },
+          { name: "safetyICR", type: "uint256" },
           { name: "repayBps", type: "uint256" },
           { name: "premiumThreshold", type: "uint256" },
           { name: "discountThreshold", type: "uint256" },
           { name: "maxReserveUseBps", type: "uint256" },
-          { name: "collateralDefenseEnabled", type: "bool" },
-          { name: "premiumModeEnabled", type: "bool" },
-          { name: "discountModeEnabled", type: "bool" }
+          { name: "safetyReserveBps", type: "uint256" },
+          { name: "opportunityReserveBps", type: "uint256" },
+          { name: "safetyEnabled", type: "bool" },
+          { name: "premiumEnabled", type: "bool" },
+          { name: "discountEnabled", type: "bool" }
         ]
       }
     ]
   },
   {
     type: "function",
-    name: "previewCollateralDefense",
+    name: "previewAutomation",
     stateMutability: "view",
     inputs: [{ name: "user", type: "address" }],
     outputs: [
+      { name: "needsSafetyRepay", type: "bool" },
       { name: "repayAmount", type: "uint256" },
-      { name: "oldICR", type: "uint256" },
-      { name: "newNICR", type: "uint256" }
+      { name: "icr", type: "uint256" },
+      { name: "btcPrice", type: "uint256" },
+      { name: "musdPrice", type: "uint256" },
+      { name: "premiumActive", type: "bool" },
+      { name: "discountActive", type: "bool" }
     ]
   },
   {
     type: "function",
-    name: "executeCollateralDefense",
+    name: "runAutomation",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "amount", type: "uint256" },
       { name: "signature", type: "bytes" },
       { name: "deadline", type: "uint256" }
     ],
     outputs: []
   },
-  { type: "function", name: "executePremiumResponse", stateMutability: "nonpayable", inputs: [], outputs: [] },
-  { type: "function", name: "executeDiscountResponse", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "event", name: "ReserveDeposited", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: true, name: "token", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
   { type: "event", name: "ReserveWithdrawn", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: true, name: "token", type: "address" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
   { type: "event", name: "RulesUpdated", inputs: [{ indexed: true, name: "user", type: "address" }], anonymous: false },
+  { type: "event", name: "RiskStateEvaluated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "icr", type: "uint256" }, { indexed: false, name: "safetyTriggered", type: "bool" }], anonymous: false },
   {
     type: "event",
-    name: "CollateralDefenseExecuted",
+    name: "SafetyRepayExecuted",
     inputs: [
       { indexed: true, name: "user", type: "address" },
       { indexed: false, name: "repayAmount", type: "uint256" },
-      { indexed: false, name: "oldICR", type: "uint256" },
-      { indexed: false, name: "newICR", type: "uint256" }
+      { indexed: false, name: "icrBefore", type: "uint256" },
+      { indexed: false, name: "icrAfter", type: "uint256" }
     ],
     anonymous: false
   },
-  { type: "event", name: "PremiumResponseExecuted", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "musdPrice", type: "uint256" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false },
-  { type: "event", name: "DiscountResponseExecuted", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "musdPrice", type: "uint256" }, { indexed: false, name: "amount", type: "uint256" }], anonymous: false }
+  { type: "event", name: "PremiumSimulated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "musdPrice", type: "uint256" }, { indexed: false, name: "notional", type: "uint256" }, { indexed: false, name: "estGain", type: "uint256" }], anonymous: false },
+  {
+    type: "event",
+    name: "DiscountSimulated",
+    inputs: [
+      { indexed: true, name: "user", type: "address" },
+      { indexed: false, name: "musdPrice", type: "uint256" },
+      { indexed: false, name: "spend", type: "uint256" },
+      { indexed: false, name: "musdAcquired", type: "uint256" },
+      { indexed: false, name: "estSavings", type: "uint256" }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "AutomationRan",
+    inputs: [
+      { indexed: true, name: "user", type: "address" },
+      { indexed: false, name: "btcPrice", type: "uint256" },
+      { indexed: false, name: "musdPrice", type: "uint256" },
+      { indexed: false, name: "icrBefore", type: "uint256" },
+      { indexed: false, name: "icrAfter", type: "uint256" },
+      { indexed: false, name: "safetyBefore", type: "uint256" },
+      { indexed: false, name: "safetyAfter", type: "uint256" },
+      { indexed: false, name: "oppBefore", type: "uint256" },
+      { indexed: false, name: "oppAfter", type: "uint256" },
+      { indexed: false, name: "mask", type: "uint256" }
+    ],
+    anonymous: false
+  }
 ] as const;

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useSimulationActions } from "@/hooks/useSimulationActions";
-import { useExecuteActions } from "@/hooks/useExecuteActions";
+import { useAutomation } from "@/hooks/useAutomation";
 
 export function SimulationLab() {
   const [busy, setBusy] = useState(false);
   const { setBtcDrop15, setPremium103, setDiscount097, reset, error: simError } = useSimulationActions();
-  const { runCollateralDefense, runPremium, runDiscount, error: execError } = useExecuteActions();
+  const { runAutomation, error: autoError } = useAutomation();
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -24,37 +24,63 @@ export function SimulationLab() {
 
       <div style={{ display: "grid", gap: 10 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Btn disabled={busy} onClick={() => wrap(setBtcDrop15)}>
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              wrap(async () => {
+                await setBtcDrop15();
+                await runAutomation();
+              })
+            }
+          >
             BTC drops 15%
           </Btn>
-          <Btn disabled={busy} onClick={() => wrap(setPremium103)}>
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              wrap(async () => {
+                await setPremium103();
+                await runAutomation();
+              })
+            }
+          >
             MUSD premium ($1.03)
           </Btn>
-          <Btn disabled={busy} onClick={() => wrap(setDiscount097)}>
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              wrap(async () => {
+                await setDiscount097();
+                await runAutomation();
+              })
+            }
+          >
             MUSD discount ($0.97)
           </Btn>
-          <Btn disabled={busy} onClick={() => wrap(reset)}>
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              wrap(async () => {
+                await reset();
+                await runAutomation();
+              })
+            }
+          >
             Reset market
           </Btn>
         </div>
 
         <div style={{ marginTop: 6, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-          <div style={{ color: "var(--muted)", marginBottom: 10 }}>Run TrovePilot</div>
+          <div style={{ color: "var(--muted)", marginBottom: 10 }}>Manual</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Btn disabled={busy} onClick={() => wrap(runCollateralDefense)}>
-              Collateral defense (real repay)
-            </Btn>
-            <Btn disabled={busy} onClick={() => wrap(runPremium)}>
-              Premium response (sim)
-            </Btn>
-            <Btn disabled={busy} onClick={() => wrap(runDiscount)}>
-              Discount response (sim)
+            <Btn disabled={busy} onClick={() => wrap(runAutomation)}>
+              Run Automation
             </Btn>
           </div>
         </div>
       </div>
 
-      {(simError || execError) && <div style={{ marginTop: 10, color: "#fda4af", fontSize: 12 }}>{(simError ?? execError)?.message}</div>}
+      {(simError || autoError) && <div style={{ marginTop: 10, color: "#fda4af", fontSize: 12 }}>{(simError ?? autoError)?.message}</div>}
     </section>
   );
 }

@@ -25,12 +25,13 @@ export function useSimulationActions() {
         functionName: "getBTCPrice"
       })) as bigint;
       const next = (current * 85n) / 100n;
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: withAddr(),
         abi: mockMarketOracleAbi,
         functionName: "setBTCPrice",
         args: [next]
       });
+      await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
       throw e;
@@ -40,7 +41,13 @@ export function useSimulationActions() {
   const setPremium103 = useCallback(async () => {
     setError(null);
     try {
-      await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setMUSDPrice", args: [parseUnits("1.03", 18)] });
+      const hash = await writeContractAsync({
+        address: withAddr(),
+        abi: mockMarketOracleAbi,
+        functionName: "setMUSDPrice",
+        args: [parseUnits("1.03", 18)]
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
       throw e;
@@ -50,7 +57,13 @@ export function useSimulationActions() {
   const setDiscount097 = useCallback(async () => {
     setError(null);
     try {
-      await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setMUSDPrice", args: [parseUnits("0.97", 18)] });
+      const hash = await writeContractAsync({
+        address: withAddr(),
+        abi: mockMarketOracleAbi,
+        functionName: "setMUSDPrice",
+        args: [parseUnits("0.97", 18)]
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
       throw e;
@@ -60,8 +73,10 @@ export function useSimulationActions() {
   const reset = useCallback(async () => {
     setError(null);
     try {
-      await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setBTCPrice", args: [parseUnits("100000", 18)] });
-      await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setMUSDPrice", args: [parseUnits("1.00", 18)] });
+      const h1 = await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setBTCPrice", args: [parseUnits("100000", 18)] });
+      await publicClient.waitForTransactionReceipt({ hash: h1 });
+      const h2 = await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setMUSDPrice", args: [parseUnits("1.00", 18)] });
+      await publicClient.waitForTransactionReceipt({ hash: h2 });
     } catch (e) {
       setError(e as Error);
       throw e;

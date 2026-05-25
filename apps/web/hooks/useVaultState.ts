@@ -26,10 +26,19 @@ export function useVaultState(user?: Address) {
       ]);
 
       const r = rules as any;
-      const rulesSet = Boolean(r && (r.minICR ?? 0n) > 0n);
+      const rulesSet = Boolean(r && ((r.safetyICR ?? 0n) > 0n || r.safetyEnabled || r.premiumEnabled || r.discountEnabled));
+
+      const [safety, opp, acquired] = await Promise.all([
+        publicClient.readContract({ address: addresses.vault, abi: vaultAbi, functionName: "getSafetyReserve", args: [user] }),
+        publicClient.readContract({ address: addresses.vault, abi: vaultAbi, functionName: "getOpportunityReserve", args: [user] }),
+        publicClient.readContract({ address: addresses.vault, abi: vaultAbi, functionName: "getOpportunityMusdAcquired", args: [user] })
+      ]);
 
       return {
         musdReserve: `${formatUnits(reserve as bigint, 18)} MUSD`,
+        safetyReserve: `${formatUnits(safety as bigint, 18)} MUSD`,
+        opportunityReserve: `${formatUnits(opp as bigint, 18)} MUSD`,
+        opportunityMusdAcquired: `${formatUnits(acquired as bigint, 18)} MUSD`,
         rulesSet
       };
     }

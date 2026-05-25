@@ -23,7 +23,10 @@ export function VaultOverview() {
 
       {data ? (
         <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-          <Row label="MUSD reserve" value={data.musdReserve} />
+          <Row label="Total reserve" value={data.musdReserve} />
+          <Row label="Safety reserve" value={data.safetyReserve} />
+          <Row label="Opportunity reserve" value={data.opportunityReserve} />
+          <Row label="MUSD acquired (sim)" value={data.opportunityMusdAcquired} />
           <Row label="Rules set" value={data.rulesSet ? "Yes" : "No"} />
           <DepositWithdraw />
         </div>
