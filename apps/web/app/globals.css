@@ -1,11 +1,36 @@
 :root {
-  color-scheme: dark;
-  --bg: #0b1220;
-  --panel: rgba(255, 255, 255, 0.06);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.65);
-  --border: rgba(255, 255, 255, 0.12);
-  --accent: #7c3aed;
+  color-scheme: light;
+
+  /* Base (match reference: soft light + subtle green atmosphere) */
+  --bg: #eef3f2;
+  --panel: #f6f8f7;
+  --panel2: #ffffff;
+  --text: #0b1220;
+  --muted: #5b6b76;
+
+  --border: rgba(15, 23, 42, 0.10);
+  --border2: rgba(15, 23, 42, 0.14);
+
+  /* Mezo-aligned accent (use sparingly) */
+  --accent: #c24141;
+  --accentSoft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accentFill: color-mix(in srgb, var(--accent) 12%, var(--panel2));
+  --accentRing: color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Functional colors (green-forward like reference) */
+  --auto: #16a34a;
+  --safe: #16a34a;
+  --warn: #f59e0b;
+  --critical: #ef4444;
+  --criticalSoft: color-mix(in srgb, var(--critical) 10%, transparent);
+
+  /* Typography */
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* Shadows (soft elevation like reference) */
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+  --shadow2: 0 18px 45px rgba(15, 23, 42, 0.10);
 }
 
 * {
@@ -19,27 +44,130 @@ body {
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 20% 0%, rgba(124, 58, 237, 0.25), transparent),
-    radial-gradient(900px 500px at 100% 10%, rgba(14, 165, 233, 0.18), transparent),
-    var(--bg);
+  background: radial-gradient(900px 520px at 50% 110%, rgba(22, 163, 74, 0.18), transparent 60%),
+    radial-gradient(900px 520px at 10% -10%, rgba(22, 163, 74, 0.14), transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, #e9efed 100%);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
-    "Segoe UI Emoji";
+  font-family: var(--sans);
+  padding: 22px;
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
 }
 
-.appShell {
+h1,
+h2,
+h3 {
+  letter-spacing: -0.03em;
+}
+
+.appFrame {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  min-height: 100dvh;
+  grid-template-columns: 240px 1fr;
+  min-height: calc(100dvh - 44px);
+  max-width: 1440px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: var(--shadow2);
 }
 
 .appMain {
   min-width: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.appContent {
+  padding: 22px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+  min-width: 0;
+}
+
+.topBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.iconBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.03);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.searchWrap {
+  min-width: 0;
+  width: min(520px, 55vw);
+  flex: 1;
+}
+
+.searchInput {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.primaryBtn {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--accentFill);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05);
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accentFill) 82%, rgba(15, 23, 42, 0.02));
+}
+
+.ghostBtn {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--text);
 }
 
 @media (max-width: 900px) {
-  .appShell {
+  body {
+    padding: 12px;
+  }
+
+  .appFrame {
     grid-template-columns: 1fr;
+  }
+
+  .topBar {
+    flex-wrap: wrap;
   }
 }
 
@@ -52,4 +180,50 @@ button,
 input,
 select {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 100ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  filter: grayscale(0.15);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+input,
+select {
+  outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accentRing);
+  outline-offset: 2px;
+}
+
+/* Soft card baseline */
+section {
+  box-shadow: var(--shadow);
+}
+
+button {
+  border-color: var(--border2) !important;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+button:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+input {
+  background: var(--panel2);
 }

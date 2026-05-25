@@ -12,7 +12,7 @@ export function VaultOverview() {
   const { data, isLoading, error } = useVaultState(safeAddress);
 
   return (
-    <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
+    <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)", height: "100%" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>TrovePilot Vault</h2>
         <div style={{ fontSize: 12, color: "var(--muted)" }}>{isLoading ? "Loading…" : null}</div>

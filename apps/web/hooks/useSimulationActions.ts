@@ -4,47 +4,41 @@ import { useCallback, useState } from "react";
 import { parseUnits } from "viem";
 import { useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
-import { mockMarketOracleAbi } from "@/lib/trovePilotAbis";
+import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
+import { useAutomation } from "@/hooks/useAutomation";
 
 export function useSimulationActions() {
   const { writeContractAsync } = useWriteContract();
   const [error, setError] = useState<Error | null>(null);
+  const { previewAutomation } = useAutomation();
 
-  const withAddr = () => {
-    if (!addresses.mockMarketOracle) throw new Error("Missing oracle address (set NEXT_PUBLIC_MOCK_MARKET_ORACLE_ADDRESS)");
-    return addresses.mockMarketOracle;
+  const withVault = () => {
+    if (!addresses.vault) throw new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
+    return addresses.vault;
   };
 
   const setBtcDrop15 = useCallback(async () => {
     setError(null);
     try {
-      const current = (await publicClient.readContract({
-        address: withAddr(),
-        abi: mockMarketOracleAbi,
-        functionName: "getBTCPrice"
-      })) as bigint;
+      const currentPreview = await previewAutomation();
+      const current = currentPreview.btcPrice;
       const next = (current * 85n) / 100n;
-      const hash = await writeContractAsync({
-        address: withAddr(),
-        abi: mockMarketOracleAbi,
-        functionName: "setBTCPrice",
-        args: [next]
-      });
+      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
       setError(e as Error);
       throw e;
     }
-  }, [writeContractAsync]);
+  }, [previewAutomation, writeContractAsync]);
 
   const setPremium103 = useCallback(async () => {
     setError(null);
     try {
       const hash = await writeContractAsync({
-        address: withAddr(),
-        abi: mockMarketOracleAbi,
-        functionName: "setMUSDPrice",
+        address: withVault(),
+        abi: vaultAbi,
+        functionName: "setSimulatedMUSDPrice",
         args: [parseUnits("1.03", 18)]
       });
       await publicClient.waitForTransactionReceipt({ hash });
@@ -58,9 +52,9 @@ export function useSimulationActions() {
     setError(null);
     try {
       const hash = await writeContractAsync({
-        address: withAddr(),
-        abi: mockMarketOracleAbi,
-        functionName: "setMUSDPrice",
+        address: withVault(),
+        abi: vaultAbi,
+        functionName: "setSimulatedMUSDPrice",
         args: [parseUnits("0.97", 18)]
       });
       await publicClient.waitForTransactionReceipt({ hash });
@@ -73,10 +67,8 @@ export function useSimulationActions() {
   const reset = useCallback(async () => {
     setError(null);
     try {
-      const h1 = await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setBTCPrice", args: [parseUnits("100000", 18)] });
-      await publicClient.waitForTransactionReceipt({ hash: h1 });
-      const h2 = await writeContractAsync({ address: withAddr(), abi: mockMarketOracleAbi, functionName: "setMUSDPrice", args: [parseUnits("1.00", 18)] });
-      await publicClient.waitForTransactionReceipt({ hash: h2 });
+      const h = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "resetSimulatedMarket", args: [] });
+      await publicClient.waitForTransactionReceipt({ hash: h });
     } catch (e) {
       setError(e as Error);
       throw e;

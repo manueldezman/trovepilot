@@ -6,11 +6,10 @@ import { useRules } from "@/hooks/useRules";
 
 const defaults = {
   safetyICR: "1.50",
-  repayBps: "1000",
   premiumThreshold: "1.02",
   discountThreshold: "0.98",
-  maxReserveUseBps: "2500",
-  safetyReserveBps: "10000",
+  maxReserveUseBps: "25",
+  safetyReserveBps: "100",
   opportunityReserveBps: "0",
   safetyEnabled: true,
   premiumEnabled: true,
@@ -20,12 +19,12 @@ const defaults = {
 export function RulesForm() {
   const { rules, setRules, isPending, error } = useRules();
   const [form, setForm] = useState(defaults);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!rules) return;
     setForm({
       safetyICR: rules.safetyICR,
-      repayBps: rules.repayBps,
       premiumThreshold: rules.premiumThreshold,
       discountThreshold: rules.discountThreshold,
       maxReserveUseBps: rules.maxReserveUseBps,
@@ -38,18 +37,30 @@ export function RulesForm() {
   }, [rules]);
 
   const payload = useMemo(() => {
-    return {
-      safetyICR: parseUnits(form.safetyICR || "0", 18),
-      repayBps: BigInt(form.repayBps || "0"),
-      premiumThreshold: parseUnits(form.premiumThreshold || "0", 18),
-      discountThreshold: parseUnits(form.discountThreshold || "0", 18),
-      maxReserveUseBps: BigInt(form.maxReserveUseBps || "0"),
-      safetyReserveBps: BigInt(form.safetyReserveBps || "0"),
-      opportunityReserveBps: BigInt(form.opportunityReserveBps || "0"),
-      safetyEnabled: form.safetyEnabled,
-      premiumEnabled: form.premiumEnabled,
-      discountEnabled: form.discountEnabled
-    };
+    setLocalError(null);
+    try {
+      const maxReserveUseBps = percentToBps(form.maxReserveUseBps);
+      const safetyReserveBps = percentToBps(form.safetyReserveBps);
+      const opportunityReserveBps = percentToBps(form.opportunityReserveBps);
+      if (safetyReserveBps + opportunityReserveBps !== 10_000n) {
+        throw new Error("Reserve split must sum to 100%");
+      }
+
+      return {
+        safetyICR: parseUnits(form.safetyICR || "0", 18),
+        premiumThreshold: parseUnits(form.premiumThreshold || "0", 18),
+        discountThreshold: parseUnits(form.discountThreshold || "0", 18),
+        maxReserveUseBps,
+        safetyReserveBps,
+        opportunityReserveBps,
+        safetyEnabled: form.safetyEnabled,
+        premiumEnabled: form.premiumEnabled,
+        discountEnabled: form.discountEnabled
+      };
+    } catch (e) {
+      setLocalError((e as Error).message);
+      return null;
+    }
   }, [form]);
 
   return (
@@ -58,14 +69,24 @@ export function RulesForm() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Field label="Safety ICR (e.g. 1.50)" value={form.safetyICR} onChange={(v) => setForm((f) => ({ ...f, safetyICR: v }))} />
-        <Field label="Repay bps (e.g. 1000 = 10%)" value={form.repayBps} onChange={(v) => setForm((f) => ({ ...f, repayBps: v }))} />
         <Field label="Premium trigger (e.g. 1.02)" value={form.premiumThreshold} onChange={(v) => setForm((f) => ({ ...f, premiumThreshold: v }))} />
         <Field label="Discount trigger (e.g. 0.98)" value={form.discountThreshold} onChange={(v) => setForm((f) => ({ ...f, discountThreshold: v }))} />
-        <Field label="Max reserve use bps (e.g. 2500 = 25%)" value={form.maxReserveUseBps} onChange={(v) => setForm((f) => ({ ...f, maxReserveUseBps: v }))} />
-        <Field label="Safety reserve bps (e.g. 10000 = 100%)" value={form.safetyReserveBps} onChange={(v) => setForm((f) => ({ ...f, safetyReserveBps: v }))} />
         <Field
-          label="Opportunity reserve bps (e.g. 0 = 0%)"
+          label="Max safety reserve use % (e.g. 25)"
+          value={form.maxReserveUseBps}
+          numeric
+          onChange={(v) => setForm((f) => ({ ...f, maxReserveUseBps: v }))}
+        />
+        <Field
+          label="Safety reserve split % (e.g. 100)"
+          value={form.safetyReserveBps}
+          numeric
+          onChange={(v) => setForm((f) => ({ ...f, safetyReserveBps: v }))}
+        />
+        <Field
+          label="Opportunity reserve split % (e.g. 0)"
           value={form.opportunityReserveBps}
+          numeric
           onChange={(v) => setForm((f) => ({ ...f, opportunityReserveBps: v }))}
         />
       </div>
@@ -78,13 +99,13 @@ export function RulesForm() {
 
       <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
         <button
-          disabled={isPending}
-          onClick={() => setRules(payload)}
+          disabled={isPending || !payload}
+          onClick={() => payload && setRules(payload)}
           style={{
             padding: "10px 12px",
             borderRadius: 12,
             border: "1px solid var(--border)",
-            background: "rgba(124,58,237,0.25)",
+            background: "var(--accentFill)",
             color: "var(--text)"
           }}
         >
@@ -92,23 +113,36 @@ export function RulesForm() {
         </button>
       </div>
 
-      {error ? <div style={{ marginTop: 10, color: "#fda4af", fontSize: 12 }}>{error.message}</div> : null}
+      {localError ? <div style={{ marginTop: 10, color: "var(--critical)", fontSize: 12 }}>{localError}</div> : null}
+      {error ? <div style={{ marginTop: 10, color: "var(--critical)", fontSize: 12 }}>{error.message}</div> : null}
     </section>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({
+  label,
+  value,
+  onChange,
+  numeric
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  numeric?: boolean;
+}) {
   return (
     <label style={{ display: "grid", gap: 6 }}>
       <span style={{ color: "var(--muted)", fontSize: 13 }}>{label}</span>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        inputMode={numeric ? "decimal" : undefined}
+        pattern={numeric ? "[0-9]*[.]?[0-9]*" : undefined}
+        onChange={(e) => onChange(numeric ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value)}
         style={{
           padding: "10px 12px",
           borderRadius: 12,
           border: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.03)",
+          background: "rgba(15,23,42,0.03)",
           color: "var(--text)"
         }}
       />
@@ -123,4 +157,16 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       <span style={{ color: "var(--muted)" }}>{label}</span>
     </label>
   );
+}
+
+function percentToBps(v: string): bigint {
+  const cleaned = (v ?? "").trim().replace(/[^\d.]/g, "");
+  if (!cleaned) return 0n;
+  const [wholeRaw, fracRaw = ""] = cleaned.split(".");
+  const whole = wholeRaw ? BigInt(wholeRaw) : 0n;
+  const frac2 = (fracRaw + "00").slice(0, 2);
+  const frac = frac2 ? BigInt(frac2) : 0n;
+  const bps = whole * 100n + frac;
+  if (bps > 10_000n) throw new Error("Percent must be <= 100");
+  return bps;
 }

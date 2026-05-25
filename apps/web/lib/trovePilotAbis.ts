@@ -11,13 +11,6 @@ export const erc20Abi = [
   }
 ] as const;
 
-export const mockMarketOracleAbi = [
-  { type: "function", name: "setBTCPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
-  { type: "function", name: "setMUSDPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
-  { type: "function", name: "getBTCPrice", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
-  { type: "function", name: "getMUSDPrice", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }
-] as const;
-
 export const vaultAbi = [
   {
     type: "function",
@@ -62,7 +55,6 @@ export const vaultAbi = [
         type: "tuple",
         components: [
           { name: "safetyICR", type: "uint256" },
-          { name: "repayBps", type: "uint256" },
           { name: "premiumThreshold", type: "uint256" },
           { name: "discountThreshold", type: "uint256" },
           { name: "maxReserveUseBps", type: "uint256" },
@@ -86,7 +78,6 @@ export const vaultAbi = [
         type: "tuple",
         components: [
           { name: "safetyICR", type: "uint256" },
-          { name: "repayBps", type: "uint256" },
           { name: "premiumThreshold", type: "uint256" },
           { name: "discountThreshold", type: "uint256" },
           { name: "maxReserveUseBps", type: "uint256" },
@@ -114,6 +105,11 @@ export const vaultAbi = [
       { name: "discountActive", type: "bool" }
     ]
   },
+  { type: "function", name: "setSimulatedBTCPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
+  { type: "function", name: "setSimulatedMUSDPrice", stateMutability: "nonpayable", inputs: [{ name: "price", type: "uint256" }], outputs: [] },
+  { type: "function", name: "resetSimulatedMarket", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "getSimulatedBTCPrice", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getSimulatedMUSDPrice", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
   {
     type: "function",
     name: "runAutomation",
@@ -169,4 +165,6 @@ export const vaultAbi = [
     ],
     anonymous: false
   }
+  ,
+  { type: "event", name: "SimulatedMarketUpdated", inputs: [{ indexed: true, name: "user", type: "address" }, { indexed: false, name: "btcPrice", type: "uint256" }, { indexed: false, name: "musdPrice", type: "uint256" }], anonymous: false }
 ] as const;

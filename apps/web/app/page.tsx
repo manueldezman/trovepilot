@@ -1,38 +1,25 @@
-import Link from "next/link";
-import { WalletBar } from "@/components/WalletBar";
-
-const links = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/trove", label: "Open Trove" },
-  { href: "/rules", label: "Strategy Rules" },
-  { href: "/sim", label: "Simulation Lab" },
-  { href: "/timeline", label: "Execution Timeline" }
-];
+import { IcrHealthCard } from "@/components/IcrHealthCard";
+import { TroveOverview } from "@/components/TroveOverview";
+import { VaultOverview } from "@/components/VaultOverview";
+import { HeroHeader } from "@/components/HeroHeader";
 
 export default function HomePage() {
   return (
-    <main style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      <WalletBar />
-      <div style={{ marginTop: 18, padding: 18, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
-        <h1 style={{ margin: 0, fontSize: 34, letterSpacing: -0.6 }}>TrovePilot</h1>
-        <p style={{ marginTop: 10, marginBottom: 0, color: "var(--muted)" }}>
-          Autopilot for Bitcoin-backed borrowing on Mezo — real trove reads + real collateral-defense repayment, with simulated peg conditions.
-        </p>
-        <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--border)",
-                background: "rgba(255,255,255,0.03)"
-              }}
-            >
-              {l.label}
-            </Link>
-          ))}
+    <main style={{ display: "grid", gap: 14 }}>
+      <HeroHeader />
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14, alignItems: "stretch" }}>
+        <IcrHealthCard />
+        <VaultOverview />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <TroveOverview />
+        <div style={{ display: "grid", gap: 14 }}>
+          <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)", height: "100%" }}>
+            <div style={{ fontWeight: 750, letterSpacing: -0.2 }}>System</div>
+            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 13 }}>
+              TrovePilot monitors simulated market state and runs automation. Use <span style={{ fontFamily: "var(--mono)" }}>/sim</span> to trigger scenarios.
+            </div>
+          </div>
         </div>
       </div>
     </main>

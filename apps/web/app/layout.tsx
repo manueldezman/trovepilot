@@ -2,6 +2,13 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
 import { SidebarNav } from "@/components/SidebarNav";
+import { TopBar } from "@/components/TopBar";
+import { Inter } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap"
+});
 
 export const metadata = {
   title: "TrovePilot",
@@ -11,11 +18,14 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      <body className={inter.className}>
         <Providers>
-          <div className="appShell">
+          <div className="appFrame">
             <SidebarNav />
-            <div className="appMain">{children}</div>
+            <div className="appMain">
+              <TopBar />
+              <div className="appContent">{children}</div>
+            </div>
           </div>
         </Providers>
       </body>

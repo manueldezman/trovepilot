@@ -7,6 +7,5 @@ function asAddress(v: string | undefined): Address | null {
 }
 
 export const addresses = {
-  vault: asAddress(process.env.NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS),
-  mockMarketOracle: asAddress(process.env.NEXT_PUBLIC_MOCK_MARKET_ORACLE_ADDRESS)
+  vault: asAddress(process.env.NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)
 };

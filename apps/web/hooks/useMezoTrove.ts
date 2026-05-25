@@ -5,10 +5,10 @@ import { type Address, formatUnits } from "viem";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO } from "@/lib/mezo";
 import { mezoTroveManagerAbi } from "@/lib/mezoAbis";
-import { useSimulatedBtcPrice } from "@/hooks/useSimulatedPrices";
+import { useSimulatedMarket } from "@/hooks/useSimulatedMarket";
 
 export function useMezoTrove(user?: Address) {
-  const { data: sim } = useSimulatedBtcPrice();
+  const { data: sim } = useSimulatedMarket(user);
   const btcPrice = sim?.btcPrice;
 
   return useQuery({
@@ -35,6 +35,9 @@ export function useMezoTrove(user?: Address) {
       const statusLabel = statusNum === 1 ? "Active" : statusNum === 2 ? "Closed" : `Status ${statusNum}`;
 
       return {
+        collateralRaw: coll as bigint,
+        debtRaw: debt as bigint,
+        icrRaw: icr as bigint,
         collateral: `${formatUnits(coll as bigint, 18)} BTC`,
         debt: `${formatUnits(debt as bigint, 18)} MUSD`,
         icr: `${formatUnits(icr as bigint, 18)}x`,

@@ -46,7 +46,6 @@ describe("TrovePilotVault", () => {
     // Set a split and ensure deposit is bucketed correctly.
     await vault.setRules({
       safetyICR: 0,
-      repayBps: 1000,
       premiumThreshold: 0,
       discountThreshold: 0,
       maxReserveUseBps: 2500,
@@ -92,11 +91,10 @@ describe("TrovePilotVault", () => {
 
     await expect(
       vault.setRules({
-        repayBps: 10001,
         safetyICR: 0,
         premiumThreshold: 0,
         discountThreshold: 0,
-        maxReserveUseBps: 0,
+        maxReserveUseBps: 10001,
         safetyReserveBps: 10_000,
         opportunityReserveBps: 0,
         safetyEnabled: true,
@@ -108,7 +106,6 @@ describe("TrovePilotVault", () => {
     await expect(
       vault.setRules({
         safetyICR: 0,
-        repayBps: 1000,
         premiumThreshold: 0,
         discountThreshold: 0,
         maxReserveUseBps: 2500,
@@ -122,7 +119,6 @@ describe("TrovePilotVault", () => {
 
     await vault.setRules({
       safetyICR: ethers.parseUnits("1.5", 18),
-      repayBps: 1000,
       premiumThreshold: ethers.parseUnits("1.02", 18),
       discountThreshold: ethers.parseUnits("0.98", 18),
       maxReserveUseBps: 2500,
@@ -134,7 +130,7 @@ describe("TrovePilotVault", () => {
     });
 
     const r = await vault.getRules(await (await ethers.getSigners())[0].getAddress());
-    expect(r.repayBps).to.eq(1000);
+    expect(r.maxReserveUseBps).to.eq(2500);
   });
 
   it("previewAutomation + runAutomation: safety requires signature; peg actions are simulated", async () => {
@@ -171,7 +167,6 @@ describe("TrovePilotVault", () => {
 
     await vault.setRules({
       safetyICR: ethers.parseUnits("2000", 18), // force safety trigger
-      repayBps: 1000,
       premiumThreshold: ethers.parseUnits("1.02", 18),
       discountThreshold: ethers.parseUnits("0.98", 18),
       maxReserveUseBps: 10_000,
@@ -193,12 +188,11 @@ describe("TrovePilotVault", () => {
 
     await expect(vault.runAutomation("0x", 0)).to.be.revertedWith("SIGNATURE_REQUIRED");
     await vault.runAutomation("0x1234", BigInt(Math.floor(Date.now() / 1000) + 60));
-    expect(await vault.getSafetyReserve(await user.getAddress())).to.eq(ethers.parseUnits("40", 18));
+    expect(await vault.getSafetyReserve(await user.getAddress())).to.eq(0);
 
     // Now disable safety, enable opportunity reserve, and simulate discount accounting.
     await vault.setRules({
       safetyICR: 0,
-      repayBps: 0,
       premiumThreshold: ethers.parseUnits("1.02", 18),
       discountThreshold: ethers.parseUnits("0.98", 18),
       maxReserveUseBps: 0,

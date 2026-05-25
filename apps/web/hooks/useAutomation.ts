@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAccount, useChainId, useSignMessage, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useSignTypedData, useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
 import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
-import { computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
 
 type Preview = {
   needsSafetyRepay: boolean;
@@ -23,7 +22,7 @@ export function useAutomation() {
   const { writeContractAsync } = useWriteContract();
   const { address } = useAccount();
   const chainId = useChainId();
-  const { signMessageAsync } = useSignMessage();
+  const { signTypedDataAsync } = useSignTypedData();
   const [error, setError] = useState<Error | null>(null);
 
   const withVault = () => {
@@ -69,16 +68,29 @@ export function useAutomation() {
         })) as bigint;
 
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-        const digest = computeRepayMusdDigest({
-          amount: preview.repayAmount,
-          borrower: address,
-          nonce,
-          deadline,
-          chainId,
-          verifyingContract: MEZO.borrowerOperationsSignatures
-        });
-
-        const signature = (await signMessageAsync({ message: { raw: digest } })) as `0x${string}`;
+        const signature = (await signTypedDataAsync({
+          domain: {
+            name: "BorrowerOperationsSignatures",
+            version: "1",
+            chainId,
+            verifyingContract: MEZO.borrowerOperationsSignatures
+          },
+          types: {
+            RepayMUSD: [
+              { name: "amount", type: "uint256" },
+              { name: "borrower", type: "address" },
+              { name: "nonce", type: "uint256" },
+              { name: "deadline", type: "uint256" }
+            ]
+          },
+          primaryType: "RepayMUSD",
+          message: {
+            amount: preview.repayAmount,
+            borrower: address,
+            nonce,
+            deadline
+          }
+        })) as `0x${string}`;
         const hash = await writeContractAsync({
           address: withVault(),
           abi: vaultAbi,
@@ -100,8 +112,7 @@ export function useAutomation() {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, previewAutomation, signMessageAsync, writeContractAsync]);
+  }, [address, chainId, previewAutomation, signTypedDataAsync, writeContractAsync]);
 
   return { runAutomation, previewAutomation, error };
 }
-

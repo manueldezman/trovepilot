@@ -44,7 +44,7 @@ export function DepositWithdraw() {
             padding: "10px 12px",
             borderRadius: 12,
             border: "1px solid var(--border)",
-            background: "rgba(255,255,255,0.03)",
+            background: "rgba(15,23,42,0.04)",
             color: "var(--text)"
           }}
         >
@@ -57,7 +57,7 @@ export function DepositWithdraw() {
             padding: "10px 12px",
             borderRadius: 12,
             border: "1px solid var(--border)",
-            background: "rgba(255,255,255,0.03)",
+            background: "rgba(15,23,42,0.04)",
             color: "var(--text)"
           }}
         >

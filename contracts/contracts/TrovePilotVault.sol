@@ -44,7 +44,6 @@ interface IMockMarketOracle {
 contract TrovePilotVault {
     struct StrategyRules {
         uint256 safetyICR; // 1e18, e.g. 1.50e18
-        uint256 repayBps; // 1000 = 10%
         uint256 premiumThreshold; // 1e18
         uint256 discountThreshold; // 1e18
         uint256 maxReserveUseBps; // cap on reserve usage per action
@@ -74,11 +73,14 @@ contract TrovePilotVault {
         uint256 oppAfter,
         uint256 mask
     );
+    event SimulatedMarketUpdated(address indexed user, uint256 btcPrice, uint256 musdPrice);
 
     mapping(address => StrategyRules) private rules;
     mapping(address => uint256) private safetyReserve;
     mapping(address => uint256) private opportunityReserve;
     mapping(address => uint256) private opportunityMusdAcquired;
+    mapping(address => uint256) private simulatedBtcPrice;
+    mapping(address => uint256) private simulatedMusdPrice;
 
     address public immutable musdToken;
     address public immutable troveManager;
@@ -140,6 +142,42 @@ contract TrovePilotVault {
         emit ReserveDeposited(msg.sender, token, amount);
     }
 
+    // Anyone can set their own simulated market state. These values are used by previewAutomation/runAutomation
+    // instead of the global oracle feed when non-zero.
+    function setSimulatedBTCPrice(uint256 price) external {
+        simulatedBtcPrice[msg.sender] = price;
+        emit SimulatedMarketUpdated(msg.sender, price, _getMusdPrice(msg.sender));
+    }
+
+    function setSimulatedMUSDPrice(uint256 price) external {
+        simulatedMusdPrice[msg.sender] = price;
+        emit SimulatedMarketUpdated(msg.sender, _getBtcPrice(msg.sender), price);
+    }
+
+    function resetSimulatedMarket() external {
+        simulatedBtcPrice[msg.sender] = 0;
+        simulatedMusdPrice[msg.sender] = 0;
+        emit SimulatedMarketUpdated(msg.sender, _getBtcPrice(msg.sender), _getMusdPrice(msg.sender));
+    }
+
+    function getSimulatedBTCPrice(address user) external view returns (uint256) {
+        return simulatedBtcPrice[user];
+    }
+
+    function getSimulatedMUSDPrice(address user) external view returns (uint256) {
+        return simulatedMusdPrice[user];
+    }
+
+    function _getBtcPrice(address user) internal view returns (uint256) {
+        uint256 v = simulatedBtcPrice[user];
+        return v == 0 ? marketOracle.getBTCPrice() : v;
+    }
+
+    function _getMusdPrice(address user) internal view returns (uint256) {
+        uint256 v = simulatedMusdPrice[user];
+        return v == 0 ? marketOracle.getMUSDPrice() : v;
+    }
+
     function withdrawReserve(address token, uint256 amount) external {
         require(amount > 0, "ZERO_AMOUNT");
         require(token == musdToken, "TOKEN_NOT_SUPPORTED");
@@ -173,7 +211,7 @@ contract TrovePilotVault {
     }
 
     function setRules(StrategyRules calldata r) external {
-        require(r.repayBps <= 10_000 && r.maxReserveUseBps <= 10_000, "BPS");
+        require(r.maxReserveUseBps <= 10_000, "BPS");
         require(r.safetyReserveBps + r.opportunityReserveBps == 10_000, "BAD_SPLIT");
         rules[msg.sender] = r;
         emit RulesUpdated(msg.sender);
@@ -198,8 +236,8 @@ contract TrovePilotVault {
     {
         StrategyRules memory r = rules[user];
 
-        btcPrice = marketOracle.getBTCPrice();
-        musdPrice = marketOracle.getMUSDPrice();
+        btcPrice = _getBtcPrice(user);
+        musdPrice = _getMusdPrice(user);
         if (btcPrice == 0) return (false, 0, 0, btcPrice, musdPrice, false, false);
 
         ITroveManager tm = ITroveManager(troveManager);
@@ -213,7 +251,11 @@ contract TrovePilotVault {
             uint256 reserve = safetyReserve[user];
             if (reserve == 0) return (true, 0, icr, btcPrice, musdPrice, false, false);
 
-            uint256 targetRepay = (debt * r.repayBps) / 10_000;
+            uint256 coll = tm.getTroveColl(user);
+            // debtTarget = coll * price / safetyICR
+            uint256 targetDebt = (coll * btcPrice) / r.safetyICR;
+            if (debt <= targetDebt) return (false, 0, icr, btcPrice, musdPrice, false, false);
+            uint256 targetRepay = debt - targetDebt;
             uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
             repayAmount = targetRepay;
             if (repayAmount > maxUse) repayAmount = maxUse;
@@ -230,8 +272,8 @@ contract TrovePilotVault {
     function runAutomation(bytes calldata signature, uint256 deadline) external {
         StrategyRules memory r = rules[msg.sender];
 
-        uint256 btcPrice = marketOracle.getBTCPrice();
-        uint256 musdPrice = marketOracle.getMUSDPrice();
+        uint256 btcPrice = _getBtcPrice(msg.sender);
+        uint256 musdPrice = _getMusdPrice(msg.sender);
         require(btcPrice > 0, "NO_PRICE");
 
         ITroveManager tm = ITroveManager(troveManager);
@@ -265,7 +307,25 @@ contract TrovePilotVault {
                 return;
             }
 
-            uint256 targetRepay = (debt * r.repayBps) / 10_000;
+            uint256 coll = tm.getTroveColl(msg.sender);
+            uint256 targetDebt = (coll * btcPrice) / r.safetyICR;
+            if (debt <= targetDebt) {
+                emit AutomationRan(
+                    msg.sender,
+                    btcPrice,
+                    musdPrice,
+                    icrBefore,
+                    icrBefore,
+                    safetyBefore,
+                    safetyReserve[msg.sender],
+                    oppBefore,
+                    opportunityReserve[msg.sender],
+                    mask
+                );
+                return;
+            }
+
+            uint256 targetRepay = debt - targetDebt;
             uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
             uint256 repayAmount = targetRepay;
             if (repayAmount > maxUse) repayAmount = maxUse;
@@ -324,15 +384,16 @@ contract TrovePilotVault {
 
         if (r.premiumEnabled && musdPrice > r.premiumThreshold) {
             mask |= 2;
-            // Minimal simulation: "notional" is 10% of opportunity reserve; "gain" is (price-1) * notional.
-            uint256 notional = (opportunityReserve[msg.sender] * 1000) / 10_000;
+            // Simulation: deploy 100% of opportunity reserve; "gain" is (price-1) * notional.
+            uint256 notional = opportunityReserve[msg.sender];
             uint256 gain = (notional * (musdPrice - 1e18)) / 1e18;
             emit PremiumSimulated(msg.sender, musdPrice, notional, gain);
         }
 
         if (r.discountEnabled && musdPrice < r.discountThreshold) {
             mask |= 4;
-            uint256 spend = (opportunityReserve[msg.sender] * 1000) / 10_000;
+            // Simulation: deploy 100% of opportunity reserve.
+            uint256 spend = opportunityReserve[msg.sender];
             // Acquire more MUSD when price < 1: acquired = spend / price (scaled 1e18).
             uint256 acquired = (spend * 1e18) / musdPrice;
             opportunityMusdAcquired[msg.sender] += acquired;

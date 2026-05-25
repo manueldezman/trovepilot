@@ -8,7 +8,6 @@ import { vaultAbi } from "@/lib/trovePilotAbis";
 
 type RulesPayload = {
   safetyICR: bigint;
-  repayBps: bigint;
   premiumThreshold: bigint;
   discountThreshold: bigint;
   maxReserveUseBps: bigint;
@@ -38,12 +37,11 @@ export function useRules() {
     const r = data as any;
     return {
       safetyICR: formatUnits((r.safetyICR ?? 0n) as bigint, 18),
-      repayBps: (r.repayBps ?? 0n).toString(),
       premiumThreshold: formatUnits((r.premiumThreshold ?? 0n) as bigint, 18),
       discountThreshold: formatUnits((r.discountThreshold ?? 0n) as bigint, 18),
-      maxReserveUseBps: r.maxReserveUseBps?.toString?.() ?? "0",
-      safetyReserveBps: r.safetyReserveBps?.toString?.() ?? "0",
-      opportunityReserveBps: r.opportunityReserveBps?.toString?.() ?? "0",
+      maxReserveUseBps: bpsToPercentString((r.maxReserveUseBps ?? 0n) as bigint),
+      safetyReserveBps: bpsToPercentString((r.safetyReserveBps ?? 0n) as bigint),
+      opportunityReserveBps: bpsToPercentString((r.opportunityReserveBps ?? 0n) as bigint),
       safetyEnabled: Boolean(r.safetyEnabled),
       premiumEnabled: Boolean(r.premiumEnabled),
       discountEnabled: Boolean(r.discountEnabled)
@@ -68,4 +66,14 @@ export function useRules() {
   );
 
   return { rules, setRules, isPending, error };
+}
+
+function bpsToPercentString(bps: bigint): string {
+  const sign = bps < 0n ? "-" : "";
+  const v = bps < 0n ? -bps : bps;
+  const whole = v / 100n;
+  const frac = v % 100n;
+  if (frac === 0n) return `${sign}${whole.toString()}`;
+  const frac2 = frac.toString().padStart(2, "0").replace(/0+$/, "");
+  return `${sign}${whole.toString()}.${frac2}`;
 }

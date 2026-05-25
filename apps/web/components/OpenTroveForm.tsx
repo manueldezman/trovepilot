@@ -198,7 +198,7 @@ export function OpenTroveForm() {
 
       {isActive ? (
         <>
-          <div style={{ marginTop: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "rgba(255,255,255,0.03)" }}>
+          <div style={{ marginTop: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "rgba(15,23,42,0.03)" }}>
             <div style={{ fontWeight: 650 }}>Trove active</div>
             <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
               <Row label="Collateral" value={trove ? `${formatUnits(trove.collateral, 18)} BTC` : "—"} />
@@ -207,16 +207,16 @@ export function OpenTroveForm() {
               <Row label="Max borrowing capacity" value={trove ? `${formatUnits(trove.maxBorrowingCapacity, 18)} MUSD` : "—"} />
             </div>
             <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                onClick={doRefinance}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--border)",
-                  background: "rgba(255,255,255,0.03)",
-                  color: "var(--text)"
-                }}
-              >
+	              <button
+	                onClick={doRefinance}
+	                style={{
+	                  padding: "10px 12px",
+	                  borderRadius: 12,
+	                  border: "1px solid var(--border)",
+	                  background: "rgba(15,23,42,0.04)",
+	                  color: "var(--text)"
+	                }}
+	              >
                 Refinance (update capacity)
               </button>
               <div style={{ alignSelf: "center", color: "var(--muted)", fontSize: 12 }}>
@@ -235,7 +235,7 @@ export function OpenTroveForm() {
                 padding: "10px 12px",
                 borderRadius: 12,
                 border: "1px solid var(--border)",
-                background: "rgba(124,58,237,0.25)",
+                background: "var(--accentFill)",
                 color: "var(--text)"
               }}
             >
@@ -269,7 +269,7 @@ export function OpenTroveForm() {
                 padding: "10px 12px",
                 borderRadius: 12,
                 border: "1px solid var(--border)",
-                background: !mintMore || mintMore.reasons.length > 0 ? "rgba(255,255,255,0.03)" : "rgba(124,58,237,0.25)",
+                background: !mintMore || mintMore.reasons.length > 0 ? "rgba(15,23,42,0.04)" : "var(--accentFill)",
                 color: "var(--text)"
               }}
             >
@@ -318,7 +318,7 @@ export function OpenTroveForm() {
                 padding: "10px 12px",
                 borderRadius: 12,
                 border: "1px solid var(--border)",
-                background: disabled ? (belowMinMinted ? "rgba(244,63,94,0.20)" : "rgba(255,255,255,0.03)") : "rgba(124,58,237,0.25)",
+                background: disabled ? (belowMinMinted ? "var(--criticalSoft)" : "rgba(15,23,42,0.04)") : "var(--accentFill)",
                 color: "var(--text)"
               }}
             >

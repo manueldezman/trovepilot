@@ -20,12 +20,20 @@ export function Timeline() {
 
       <div style={{ display: "grid", gap: 10 }}>
         {events.map((e) => (
-          <div key={e.id} style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ fontWeight: 650 }}>{e.title}</div>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>{e.when}</div>
+          <div
+            key={e.id}
+            style={{
+              padding: 12,
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              background: "rgba(15,23,42,0.03)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <div style={{ fontWeight: 700, letterSpacing: 0.2 }}>{e.title}</div>
+              <div style={{ color: "var(--muted)", fontSize: 12, fontFamily: "var(--mono)" }}>{e.when}</div>
             </div>
-            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 13 }}>{e.detail}</div>
+            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, fontFamily: "var(--mono)", whiteSpace: "pre-wrap" }}>{e.detail}</div>
             {e.txUrl ? (
               <div style={{ marginTop: 8, fontSize: 13 }}>
                 <a href={e.txUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
