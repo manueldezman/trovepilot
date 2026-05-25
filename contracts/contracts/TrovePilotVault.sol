@@ -61,6 +61,8 @@ contract TrovePilotVault {
     event SafetyRepayExecuted(address indexed user, uint256 repayAmount, uint256 icrBefore, uint256 icrAfter);
     event PremiumSimulated(address indexed user, uint256 musdPrice, uint256 notional, uint256 estGain);
     event DiscountSimulated(address indexed user, uint256 musdPrice, uint256 spend, uint256 musdAcquired, uint256 estSavings);
+    event SafetyRan(address indexed user, uint256 btcPrice, uint256 icrBefore, uint256 icrAfter, uint256 repayAmount);
+    event PegRan(address indexed user, uint256 musdPrice, bool premiumActive, bool discountActive);
     event AutomationRan(
         address indexed user,
         uint256 btcPrice,
@@ -262,10 +264,81 @@ contract TrovePilotVault {
             if (repayAmount > reserve) repayAmount = reserve;
         }
 
-        // Peg rules depend only on simulated MUSD price, but are suppressed if safety triggers.
-        if (!needsSafetyRepay) {
-            premiumActive = r.premiumEnabled && musdPrice > r.premiumThreshold;
-            discountActive = r.discountEnabled && musdPrice < r.discountThreshold;
+        // Peg rules depend only on simulated MUSD price. Safety does not suppress peg previews.
+        premiumActive = r.premiumEnabled && musdPrice > r.premiumThreshold;
+        discountActive = r.discountEnabled && musdPrice < r.discountThreshold;
+    }
+
+    function previewSafety(address user)
+        external
+        view
+        returns (
+            bool triggered,
+            uint256 repayAmount,
+            uint256 icr,
+            uint256 btcPrice,
+            uint256 safetyICR,
+            uint256 safetyReserveBalance
+        )
+    {
+        StrategyRules memory r = rules[user];
+        safetyICR = r.safetyICR;
+        safetyReserveBalance = safetyReserve[user];
+
+        btcPrice = _getBtcPrice(user);
+        if (btcPrice == 0) return (false, 0, 0, 0, safetyICR, safetyReserveBalance);
+
+        ITroveManager tm = ITroveManager(troveManager);
+        icr = tm.getCurrentICR(user, btcPrice);
+        triggered = r.safetyEnabled && icr < r.safetyICR;
+        if (!triggered) return (false, 0, icr, btcPrice, safetyICR, safetyReserveBalance);
+
+        uint256 debt = tm.getTroveDebt(user);
+        if (debt == 0) return (false, 0, icr, btcPrice, safetyICR, safetyReserveBalance);
+        uint256 reserve = safetyReserveBalance;
+        if (reserve == 0) return (true, 0, icr, btcPrice, safetyICR, safetyReserveBalance);
+
+        uint256 coll = tm.getTroveColl(user);
+        uint256 targetDebt = (coll * btcPrice) / r.safetyICR;
+        if (debt <= targetDebt) return (false, 0, icr, btcPrice, safetyICR, safetyReserveBalance);
+        uint256 targetRepay = debt - targetDebt;
+        uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
+        repayAmount = targetRepay;
+        if (repayAmount > maxUse) repayAmount = maxUse;
+        if (repayAmount > reserve) repayAmount = reserve;
+    }
+
+    function previewPeg(address user)
+        external
+        view
+        returns (
+            uint256 musdPrice,
+            bool premiumActive,
+            bool discountActive,
+            uint256 premiumThreshold,
+            uint256 discountThreshold,
+            uint256 opportunityReserveBalance,
+            uint256 estGain,
+            uint256 estSavings
+        )
+    {
+        StrategyRules memory r = rules[user];
+        musdPrice = _getMusdPrice(user);
+        premiumThreshold = r.premiumThreshold;
+        discountThreshold = r.discountThreshold;
+        opportunityReserveBalance = opportunityReserve[user];
+
+        premiumActive = r.premiumEnabled && musdPrice > r.premiumThreshold;
+        discountActive = r.discountEnabled && musdPrice < r.discountThreshold;
+
+        if (premiumActive) {
+            uint256 notional = opportunityReserveBalance;
+            estGain = (notional * (musdPrice - 1e18)) / 1e18;
+        }
+        if (discountActive && musdPrice > 0) {
+            uint256 spend = opportunityReserveBalance;
+            uint256 acquired = (spend * 1e18) / musdPrice;
+            estSavings = acquired > spend ? acquired - spend : 0;
         }
     }
 
@@ -379,7 +452,7 @@ contract TrovePilotVault {
             return;
         }
 
-        // Peg actions (MUSD price only), executed only when safety is not triggered.
+        // Peg actions (MUSD price only). Safety does not suppress peg execution in this legacy runner.
         uint256 icrAfterPeg = icrBefore;
 
         if (r.premiumEnabled && musdPrice > r.premiumThreshold) {
@@ -413,6 +486,90 @@ contract TrovePilotVault {
             opportunityReserve[msg.sender],
             mask
         );
+    }
+
+    function runSafety(bytes calldata signature, uint256 deadline) external {
+        StrategyRules memory r = rules[msg.sender];
+
+        uint256 btcPrice = _getBtcPrice(msg.sender);
+        require(btcPrice > 0, "NO_PRICE");
+
+        ITroveManager tm = ITroveManager(troveManager);
+        uint256 icrBefore = tm.getCurrentICR(msg.sender, btcPrice);
+
+        bool safetyTriggered = r.safetyEnabled && icrBefore < r.safetyICR;
+        emit RiskStateEvaluated(msg.sender, icrBefore, safetyTriggered);
+
+        if (!safetyTriggered) {
+            emit SafetyRan(msg.sender, btcPrice, icrBefore, icrBefore, 0);
+            return;
+        }
+
+        uint256 debt = tm.getTroveDebt(msg.sender);
+        uint256 reserve = safetyReserve[msg.sender];
+        if (debt == 0 || reserve == 0) {
+            emit SafetyRan(msg.sender, btcPrice, icrBefore, icrBefore, 0);
+            return;
+        }
+
+        uint256 coll = tm.getTroveColl(msg.sender);
+        uint256 targetDebt = (coll * btcPrice) / r.safetyICR;
+        if (debt <= targetDebt) {
+            emit SafetyRan(msg.sender, btcPrice, icrBefore, icrBefore, 0);
+            return;
+        }
+
+        uint256 targetRepay = debt - targetDebt;
+        uint256 maxUse = (reserve * r.maxReserveUseBps) / 10_000;
+        uint256 repayAmount = targetRepay;
+        if (repayAmount > maxUse) repayAmount = maxUse;
+        if (repayAmount > reserve) repayAmount = reserve;
+        if (repayAmount == 0) {
+            emit SafetyRan(msg.sender, btcPrice, icrBefore, icrBefore, 0);
+            return;
+        }
+
+        require(signature.length > 0 && deadline > 0, "SIGNATURE_REQUIRED");
+
+        safetyReserve[msg.sender] = reserve - repayAmount;
+        (address upper, address lower) = _findRepayHints(msg.sender, debt, repayAmount);
+
+        IBorrowerOperationsSignatures(borrowerOperationsSignatures).repayMUSDWithSignature(
+            repayAmount,
+            upper,
+            lower,
+            msg.sender,
+            signature,
+            deadline
+        );
+
+        uint256 icrAfter = tm.getCurrentICR(msg.sender, btcPrice);
+        emit SafetyRepayExecuted(msg.sender, repayAmount, icrBefore, icrAfter);
+        emit SafetyRan(msg.sender, btcPrice, icrBefore, icrAfter, repayAmount);
+    }
+
+    function runPeg() external {
+        StrategyRules memory r = rules[msg.sender];
+        uint256 musdPrice = _getMusdPrice(msg.sender);
+
+        bool premiumActive = r.premiumEnabled && musdPrice > r.premiumThreshold;
+        bool discountActive = r.discountEnabled && musdPrice < r.discountThreshold;
+
+        if (premiumActive) {
+            uint256 notional = opportunityReserve[msg.sender];
+            uint256 gain = (notional * (musdPrice - 1e18)) / 1e18;
+            emit PremiumSimulated(msg.sender, musdPrice, notional, gain);
+        }
+
+        if (discountActive && musdPrice > 0) {
+            uint256 spend = opportunityReserve[msg.sender];
+            uint256 acquired = (spend * 1e18) / musdPrice;
+            opportunityMusdAcquired[msg.sender] += acquired;
+            uint256 savings = acquired > spend ? acquired - spend : 0;
+            emit DiscountSimulated(msg.sender, musdPrice, spend, acquired, savings);
+        }
+
+        emit PegRan(msg.sender, musdPrice, premiumActive, discountActive);
     }
 
     function _findRepayHints(address borrower, uint256 currentDebt, uint256 repayAmount) internal view returns (address upper, address lower) {
