@@ -2,11 +2,30 @@ import { NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount, sign } from "viem/accounts";
 import { defineChain } from "viem";
-import { MEZO, mezoChainId, mezoRpcUrl } from "@/lib/mezo";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { mezoPriceFeedAbi, mezoBorrowerOperationsSignaturesAbi, mezoBorrowerOperationsAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { computeAdjustTroveDigest } from "@/lib/borrowerOpsSignatures";
 import { addresses } from "@/lib/addresses";
+
+const MEZO = {
+  borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
+  borrowerOperationsSignatures: "0xD757e3646AF370b15f32EB557F0F8380Df7D639e",
+  troveManager: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
+  sortedTroves: "0x722E4D24FD6Ff8b0AC679450F3D91294607268fA",
+  hintHelpers: "0x4e4cBA3779d56386ED43631b4dCD6d8EacEcBCF6",
+  priceFeed: "0x86bCF0841622a5dAC14A313a15f96A95421b9366",
+  musd: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503"
+} as const;
+
+function envChainId(): number {
+  const v = process.env.NEXT_PUBLIC_MEZO_CHAIN_ID;
+  const n = v ? Number(v) : 31611;
+  return Number.isFinite(n) ? n : 31611;
+}
+
+function envRpcUrl(): string {
+  return process.env.NEXT_PUBLIC_MEZO_RPC_URL || "https://rpc.test.mezo.org";
+}
 
 type Body = {
   mode: "preview" | "run";
@@ -69,15 +88,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Connected wallet (${body.address}) does not match demo signer (${account.address})` }, { status: 400 });
     }
 
+    const rpcUrl = envRpcUrl();
+    const chainId = envChainId();
     const chain = defineChain({
-      id: mezoChainId,
+      id: chainId,
       name: "Mezo Testnet",
       nativeCurrency: { name: "BTC", symbol: "BTC", decimals: 18 },
-      rpcUrls: { default: { http: [mezoRpcUrl] } }
+      rpcUrls: { default: { http: [rpcUrl] } }
     });
 
-    const publicClient = createPublicClient({ chain, transport: http(mezoRpcUrl) });
-    const walletClient = createWalletClient({ chain, transport: http(mezoRpcUrl), account });
+    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+    const walletClient = createWalletClient({ chain, transport: http(rpcUrl), account });
 
     const pct = clampPct(body.pct);
     const [simBtc, protocolBtc] = await Promise.all([
@@ -158,7 +179,7 @@ export async function POST(req: Request) {
         recipient: vault,
         nonce,
         deadline,
-        chainId: mezoChainId,
+        chainId,
         verifyingContract: MEZO.borrowerOperationsSignatures
       });
       const signature = (await sign({ hash: digest, privateKey: pk, to: "hex" })) as `0x${string}`;
