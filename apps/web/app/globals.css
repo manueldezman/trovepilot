@@ -6,30 +6,47 @@
 @import "@fontsource/ibm-plex-mono/600.css";
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* Base (match reference: soft light + subtle green atmosphere) */
-  --bg: #eef3f2;
-  --panel: #f6f8f7;
-  --panel2: #ffffff;
-  --text: #0b1220;
-  --muted: #5b6b76;
+  /* New token system (dark crimson) */
+  --bg: #050507;
+  --bg-2: #0b0b0f;
 
-  --border: rgba(15, 23, 42, 0.10);
-  --border2: rgba(15, 23, 42, 0.14);
+  --surface: #111318;
+  --surface-2: #171a21;
+  --surface-3: #1e222b;
 
-  /* Mezo-aligned accent (use sparingly) */
-  --accent: #c24141;
-  --accentSoft: color-mix(in srgb, var(--accent) 12%, transparent);
-  --accentFill: color-mix(in srgb, var(--accent) 12%, var(--panel2));
-  --accentRing: color-mix(in srgb, var(--accent) 35%, transparent);
+  --border: #272a33;
 
-  /* Functional colors (green-forward like reference) */
-  --auto: #16a34a;
-  --safe: #16a34a;
-  --warn: #f59e0b;
-  --critical: #ef4444;
-  --criticalSoft: color-mix(in srgb, var(--critical) 10%, transparent);
+  --primary: #e5484d;
+  --primary-hover: #f05d63;
+  --primary-soft: rgba(229, 72, 77, 0.16);
+  --primary-border: rgba(229, 72, 77, 0.35);
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #e5484d;
+
+  --text: #f8fafc;
+  --text-soft: #cbd5e1;
+  --muted: #94a3b8;
+  --muted-dark: #697386;
+
+  --dark-red: #2b0b0d;
+
+  /* Aliases (compat for existing components) */
+  --panel: var(--surface);
+  --panel2: var(--surface-2);
+  --border2: var(--border);
+  --accent: var(--primary);
+  --accentSoft: var(--primary-soft);
+  --accentFill: var(--primary);
+  --accentRing: var(--primary-border);
+  --auto: var(--primary-hover);
+  --safe: var(--success);
+  --warn: var(--warning);
+  --critical: var(--danger);
+  --criticalSoft: color-mix(in srgb, var(--danger) 14%, transparent);
 
   /* Typography */
   --heading: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
@@ -37,8 +54,8 @@
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Shadows (soft elevation like reference) */
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
-  --shadow2: 0 18px 45px rgba(15, 23, 42, 0.10);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow2: 0 18px 48px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -52,9 +69,10 @@ body {
 
 body {
   margin: 0;
-  background: radial-gradient(900px 520px at 50% 110%, rgba(22, 163, 74, 0.18), transparent 60%),
-    radial-gradient(900px 520px at 10% -10%, rgba(22, 163, 74, 0.14), transparent 55%),
-    linear-gradient(180deg, var(--bg) 0%, #e9efed 100%);
+  background:
+    radial-gradient(820px 560px at 12% -12%, var(--primary-soft), transparent 60%),
+    radial-gradient(860px 560px at 84% 112%, rgba(229, 72, 77, 0.10), transparent 60%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
   color: var(--text);
   font-family: var(--sans);
   padding: 22px;
@@ -93,8 +111,8 @@ p {
   min-height: calc(100dvh - 44px);
   max-width: 1440px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border: 1px solid var(--border);
   border-radius: 22px;
   overflow: hidden;
   box-shadow: var(--shadow2);
@@ -161,10 +179,11 @@ p {
   height: 38px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.03);
+  background: var(--surface-2);
   display: grid;
   place-items: center;
   font-weight: 800;
+  color: var(--text);
 }
 
 .searchWrap {
@@ -179,27 +198,28 @@ p {
   padding: 0 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.03);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .primaryBtn {
   padding: 9px 12px;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--accentFill);
+  border: 1px solid var(--primary-border);
+  background: var(--primary);
   color: var(--text);
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05);
 }
 
 .primaryBtn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accentFill) 82%, rgba(15, 23, 42, 0.02));
+  background: var(--primary-hover);
 }
 
 .ghostBtn {
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.03);
+  background: var(--surface-2);
   color: var(--text);
 }
 
@@ -263,13 +283,15 @@ section {
 
 button {
   border-color: var(--border2) !important;
-  background: rgba(15, 23, 42, 0.04);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 button:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.06);
+  background: var(--surface-3);
 }
 
 input {
-  background: var(--panel2);
+  background: var(--surface-2);
+  color: var(--text);
 }
