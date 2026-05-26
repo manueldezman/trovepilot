@@ -327,9 +327,9 @@ function PremiumRows({ preview }: { preview: any }) {
       <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
       <Row label="Active" value={preview.active ? "Yes" : "No"} />
       <Row label="Sell MUSD" value={`${formatUnitsCeil(preview.sellMusd as bigint, 18, 2)} MUSD`} />
-      <Row label="Est. USDC out" value={`${formatUnitsCeil(preview.estUsdcOut as bigint, 18, 2)} USDC`} />
+      <Row label="Est. value out" value={`${formatUnitsCeil(preview.estUsdcOut as bigint, 18, 2)}`} />
       <Row label="MUSD reserve" value={`${formatUnitsCeil(preview.musdReserve as bigint, 18, 2)} MUSD`} />
-      <Row label="USDC reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} USDC`} />
+      <Row label="Opportunity reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} MUSD`} />
     </>
   );
 }
@@ -339,10 +339,10 @@ function DiscountRows({ preview }: { preview: any }) {
     <>
       <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
       <Row label="Active" value={preview.active ? "Yes" : "No"} />
-      <Row label="Spend USDC" value={`${formatUnitsCeil(preview.spendUsdc as bigint, 18, 2)} USDC`} />
+      <Row label="Spend (opportunity)" value={`${formatUnitsCeil(preview.spendUsdc as bigint, 18, 2)} MUSD`} />
       <Row label="Est. MUSD out" value={`${formatUnitsCeil(preview.estMusdOut as bigint, 18, 2)} MUSD`} />
       <Row label="MUSD reserve" value={`${formatUnitsCeil(preview.musdReserve as bigint, 18, 2)} MUSD`} />
-      <Row label="USDC reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} USDC`} />
+      <Row label="Opportunity reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} MUSD`} />
     </>
   );
 }

@@ -38,7 +38,7 @@ export function LiquidCoverageCard() {
         ${rounded.toString()}
       </div>
       <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-        (Spendable MUSD + MUSD Reserve + USDC Reserve) − Trove Debt
+        (Spendable MUSD + Stability + Opportunity) − Trove Debt
       </div>
     </section>
   );

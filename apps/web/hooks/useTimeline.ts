@@ -45,7 +45,7 @@ function formatDetail(eventName: string, args: any): string {
       return [
         `MUSD in: ${fmt18(a.musdIn)} MUSD`,
         `Stability (MUSD): +${fmt18(a.musdKept)} MUSD`,
-        `Opportunity (USDC): +${fmt18(a.usdcAdded)} USDC`,
+        `Opportunity: +${fmt18(a.usdcAdded)} MUSD`,
         `MUSD price: ${fmt18(a.musdPrice)}`
       ].join("\n");
     }
@@ -70,13 +70,13 @@ function formatDetail(eventName: string, args: any): string {
       return [
         `MUSD price: ${fmt18(a.musdPrice)}`,
         `Sold: ${fmt18(a.sellMusd)} MUSD`,
-        `USDC out (sim): ${fmt18(a.estUsdcOut)}`
+        `Est value out: ${fmt18(a.estUsdcOut)}`
       ].join("\n");
     }
     case "DiscountRotated": {
       return [
         `MUSD price: ${fmt18(a.musdPrice)}`,
-        `Spent: ${fmt18(a.spendUsdc)} USDC`,
+        `Spent (opp): ${fmt18(a.spendUsdc)} MUSD`,
         `MUSD out (sim): ${fmt18(a.estMusdOut)}`
       ].join("\n");
     }
