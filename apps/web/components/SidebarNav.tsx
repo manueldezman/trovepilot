@@ -69,7 +69,7 @@ export function SidebarNav() {
                   style={{
                     width: 18,
                     height: 18,
-                    color: active ? "var(--accent)" : "rgba(15,23,42,0.55)"
+                    color: active ? "var(--accent)" : "var(--text)"
                   }}
                 >
                   <Icon />
