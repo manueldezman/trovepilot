@@ -49,6 +49,10 @@ function normalizePreview(p: any) {
 
 export async function POST(req: Request) {
   try {
+    if (process.env.DEMO_AUTOMATION_ENABLED !== "1") {
+      return new Response("Not found", { status: 404 });
+    }
+
     const body = (await req.json().catch(() => ({}))) as Body;
     const mode = body.mode;
     if (mode !== "preview" && mode !== "run") return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
