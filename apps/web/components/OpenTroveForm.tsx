@@ -201,10 +201,10 @@ export function OpenTroveForm() {
           <div style={{ marginTop: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "rgba(15,23,42,0.03)" }}>
             <div style={{ fontWeight: 650 }}>Trove active</div>
             <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-              <Row label="Collateral" value={trove ? `${formatUnits(trove.collateral, 18)} BTC` : "—"} />
-              <Row label="Debt (composite)" value={trove ? `${formatUnits(trove.debt, 18)} MUSD` : "—"} />
+              <Row label="Collateral" value={trove ? `${formatUnitsCeil(trove.collateral, 18, 2)} BTC` : "—"} />
+              <Row label="Debt (composite)" value={trove ? `${formatUnitsCeil(trove.debt, 18, 2)} MUSD` : "—"} />
               <Row label="ICR (protocol price)" value={trove ? `${formatUnitsCeil(trove.icr, 18, 2)}x` : "—"} />
-              <Row label="Max borrowing capacity" value={trove ? `${formatUnits(trove.maxBorrowingCapacity, 18)} MUSD` : "—"} />
+              <Row label="Max borrowing capacity" value={trove ? `${formatUnitsCeil(trove.maxBorrowingCapacity, 18, 2)} MUSD` : "—"} />
             </div>
             <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
 	              <button
@@ -257,7 +257,7 @@ export function OpenTroveForm() {
               </div>
             </div>
 
-            <Row label="Additional mint (est.)" value={mintMore ? `${formatUnits(mintMore.amount, 18)} MUSD` : "—"} />
+            <Row label="Additional mint (est.)" value={mintMore ? `${formatUnitsCeil(mintMore.amount, 18, 2)} MUSD` : "—"} />
             {mintMore && mintMore.reasons.length > 0 ? (
               <div style={{ color: "#fbbf24", fontSize: 12 }}>{mintMore.reasons.join(" • ")}</div>
             ) : null}
@@ -295,15 +295,21 @@ export function OpenTroveForm() {
       )}
 
       <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-        <Row label="Protocol BTC price" value={priceLoading ? "Loading…" : priceError ? "Error" : protocolPrice ? formatUnits(protocolPrice, 18) : "—"} />
-        <Row label="Borrowing rate" value={paramsLoading ? "Loading…" : paramsError ? "Error" : borrowParams ? `${formatUnits(borrowParams.borrowingRate, 18)} (1e18)` : "—"} />
+        <Row
+          label="Protocol BTC price"
+          value={priceLoading ? "Loading…" : priceError ? "Error" : protocolPrice ? formatUnitsCeil(protocolPrice, 18, 2) : "—"}
+        />
+        <Row
+          label="Borrowing rate"
+          value={paramsLoading ? "Loading…" : paramsError ? "Error" : borrowParams ? `${formatUnitsCeil(borrowParams.borrowingRate, 18, 4)} (1e18)` : "—"}
+        />
         {!isActive ? (
           <>
-            <Row label="Estimated minted MUSD" value={calc ? `${formatUnits(calc.debtAmount, 18)} MUSD` : "—"} />
-            <Row label="Estimated borrowing fee" value={calc ? `${formatUnits(calc.fee, 18)} MUSD` : "—"} />
+            <Row label="Estimated minted MUSD" value={calc ? `${formatUnitsCeil(calc.debtAmount, 18, 2)} MUSD` : "—"} />
+            <Row label="Estimated borrowing fee" value={calc ? `${formatUnitsCeil(calc.fee, 18, 2)} MUSD` : "—"} />
             <Row label="Gas compensation" value="200.0 MUSD" />
-            <Row label="Net debt" value={calc ? `${formatUnits(calc.netDebt, 18)} MUSD` : "—"} />
-            <Row label="Composite debt" value={calc ? `${formatUnits(calc.compositeDebt, 18)} MUSD` : "—"} />
+            <Row label="Net debt" value={calc ? `${formatUnitsCeil(calc.netDebt, 18, 2)} MUSD` : "—"} />
+            <Row label="Composite debt" value={calc ? `${formatUnitsCeil(calc.compositeDebt, 18, 2)} MUSD` : "—"} />
           </>
         ) : null}
       </div>
