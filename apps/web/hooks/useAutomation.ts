@@ -25,7 +25,10 @@ export type BtcDownPreview = {
 
 export type BtcUpPreview = {
   triggered: boolean;
-  mintAmount: bigint;
+  mintAmount: bigint; // clamped
+  mintAmountRaw: bigint; // from vault preview (unclamped)
+  maxMintAllowed: bigint; // derived from Mezo max borrowing capacity headroom
+  cappedByCapacity: boolean;
   icr: bigint;
   btcPrice: bigint;
   bandUpper: bigint;
@@ -90,13 +93,45 @@ export function useAutomation() {
       args: [address]
     })) as any;
 
+    const triggered = Boolean(res.triggered ?? res[0]);
+    const mintAmountRaw = (res.mintAmount ?? res[1]) as bigint;
+    const icr = (res.icr ?? res[2]) as bigint;
+    const btcPrice = (res.btcPrice ?? res[3]) as bigint;
+    const bandUpper = (res.bandUpper ?? res[4]) as bigint;
+    const targetICR = (res.targetICR ?? res[5]) as bigint;
+
+    let maxMintAllowed = 0n;
+    let mintAmount = mintAmountRaw;
+    let cappedByCapacity = false;
+
+    // Capacity clamp: prevent proposing a mint larger than Mezo allows.
+    if (triggered && mintAmountRaw > 0n) {
+      const [debtComposite, capComposite, rate] = (await Promise.all([
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [address] }),
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveMaxBorrowingCapacity", args: [address] }),
+        publicClient.readContract({ address: MEZO.borrowerOperations, abi: mezoBorrowerOperationsAbi, functionName: "borrowingRate", args: [] })
+      ])) as [bigint, bigint, bigint];
+
+      const headroom = capComposite > debtComposite ? capComposite - debtComposite : 0n;
+      maxMintAllowed = (headroom * 1_000_000_000_000_000_000n) / (1_000_000_000_000_000_000n + rate);
+      if (maxMintAllowed > 0n) maxMintAllowed -= 1n; // small buffer for rounding
+
+      if (mintAmountRaw > maxMintAllowed) {
+        mintAmount = maxMintAllowed;
+        cappedByCapacity = true;
+      }
+    }
+
     return {
-      triggered: Boolean(res.triggered ?? res[0]),
-      mintAmount: (res.mintAmount ?? res[1]) as bigint,
-      icr: (res.icr ?? res[2]) as bigint,
-      btcPrice: (res.btcPrice ?? res[3]) as bigint,
-      bandUpper: (res.bandUpper ?? res[4]) as bigint,
-      targetICR: (res.targetICR ?? res[5]) as bigint
+      triggered,
+      mintAmount,
+      mintAmountRaw,
+      maxMintAllowed,
+      cappedByCapacity,
+      icr,
+      btcPrice,
+      bandUpper,
+      targetICR
     };
   }, [address]);
 
@@ -304,6 +339,10 @@ export function useAutomation() {
         const depositHash = await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "depositReserveMUSD", args: [preview.mintAmount] });
         await publicClient.waitForTransactionReceipt({ hash: depositHash });
         return;
+      }
+
+      if (preview.triggered && preview.mintAmount === 0n) {
+        throw new Error("No borrowing capacity remaining");
       }
 
       try {

@@ -309,7 +309,12 @@ function BtcUpRows({ preview }: { preview: any }) {
       {preview.triggered ? (
         <>
           <Row label="Mint amount (to reserve)" value={`${formatUnitsCeil(preview.mintAmount as bigint, 18, 2)} MUSD`} />
-          <Row label="Signature required" value={(preview.mintAmount as bigint) > 0n ? "Yes" : "No"} />
+          {"maxMintAllowed" in preview ? (
+            <Row label="Max mint allowed (capacity)" value={`${formatUnitsCeil(preview.maxMintAllowed as bigint, 18, 2)} MUSD`} />
+          ) : null}
+          {"cappedByCapacity" in preview && preview.cappedByCapacity ? (
+            <Row label="Note" value="Capped by Mezo borrowing capacity" />
+          ) : null}
         </>
       ) : null}
     </>
