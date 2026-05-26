@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAccount, useChainId, useSignTypedData, useWalletClient, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useWalletClient, useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
-import { mezoBorrowerOperationsSignaturesAbi } from "@/lib/mezoAbis";
-import { computeAdjustTroveDigest, computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
+import {
+  mezoBorrowerOperationsAbi,
+  mezoBorrowerOperationsSignaturesAbi,
+  mezoHintHelpersAbi,
+  mezoSortedTrovesAbi,
+  mezoTroveManagerAbi
+} from "@/lib/mezoAbis";
+import { computeAdjustTroveDigest } from "@/lib/borrowerOpsSignatures";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -154,49 +160,70 @@ export function useAutomation() {
 
       const preview = await previewBtcDown();
       if (preview.triggered && preview.repayAmount > 0n) {
-        if (!walletClient) throw new Error("Wallet client unavailable");
-        const nonce = await nonceFor();
-        const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-        // Mezo's BorrowerOperationsSignatures uses a non-standard EIP-712 struct hash (abi.encodePacked),
-        // so `signTypedData` will not match. We must sign the exact digest it computes via `eth_sign`.
-        const digest = computeRepayMusdDigest({
-          amount: preview.repayAmount,
-          borrower: address,
-          nonce,
-          deadline,
-          chainId,
-          verifyingContract: MEZO.borrowerOperationsSignatures
+        // Production-safe repay flow (no eth_sign):
+        // 1) Withdraw needed MUSD from vault reserve to the borrower's wallet.
+        // 2) Repay from the borrower's wallet via BorrowerOperations.repayMUSD.
+        const withdrawHash = await writeContractAsync({
+          address: withVault(),
+          abi: vaultAbi,
+          functionName: "withdrawReserveMUSD",
+          args: [preview.repayAmount]
         });
-        let signature: `0x${string}`;
-        try {
-          signature = (await walletClient.request({ method: "eth_sign", params: [address, digest] })) as `0x${string}`;
-        } catch (e: any) {
-          const msg = (e?.shortMessage || e?.message || "").toLowerCase();
-          if (msg.includes("does not exist") || msg.includes("not available") || msg.includes("method not found")) {
-            throw new Error(
-              "Your wallet does not support `eth_sign`. Mezo BorrowerOperationsSignatures requires a raw digest signature for BTC Down/Up. Use MetaMask with eth_sign enabled (Advanced settings) or a wallet that supports eth_sign."
-            );
-          }
-          throw e;
-        }
+        await publicClient.waitForTransactionReceipt({ hash: withdrawHash });
 
-        // Preflight simulation to surface revert reasons (instead of MetaMask "network fee" generic errors).
+        const [coll, debt] = (await Promise.all([
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [address] }),
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [address] })
+        ])) as [bigint, bigint];
+
+        const newDebt = debt - preview.repayAmount;
+        const nicr = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "computeNominalCR",
+          args: [coll, newDebt]
+        })) as bigint;
+
+        const seed = BigInt(Date.now());
+        const approx = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "getApproxHint",
+          args: [nicr, 50n, seed]
+        })) as any;
+        const hintAddress = (approx.hintAddress ?? approx[0]) as `0x${string}`;
+
+        const pos = (await publicClient.readContract({
+          address: MEZO.sortedTroves,
+          abi: mezoSortedTrovesAbi,
+          functionName: "findInsertPosition",
+          args: [nicr, hintAddress, hintAddress]
+        })) as any;
+        const upperHint = (pos.prevId ?? pos[0]) as `0x${string}`;
+        const lowerHint = (pos.nextId ?? pos[1]) as `0x${string}`;
+
+        // Preflight repay to surface revert reasons (instead of MetaMask "network fee" generic errors).
         try {
           await publicClient.simulateContract({
             account: address,
-            address: withVault(),
-            abi: vaultAbi,
-            functionName: "runBtcDown",
-            args: [signature, deadline]
+            address: MEZO.borrowerOperations,
+            abi: mezoBorrowerOperationsAbi,
+            functionName: "repayMUSD",
+            args: [preview.repayAmount, upperHint, lowerHint]
           });
         } catch (e) {
           const err: any = e;
           const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-          throw new Error(`BTC Down repay would fail: ${msg}`);
+          throw new Error(`Repay would fail: ${msg}`);
         }
 
-        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: [signature, deadline] });
-        await publicClient.waitForTransactionReceipt({ hash });
+        const repayHash = await writeContractAsync({
+          address: MEZO.borrowerOperations,
+          abi: mezoBorrowerOperationsAbi,
+          functionName: "repayMUSD",
+          args: [preview.repayAmount, upperHint, lowerHint]
+        });
+        await publicClient.waitForTransactionReceipt({ hash: repayHash });
         return;
       }
 
@@ -220,7 +247,7 @@ export function useAutomation() {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, nonceFor, previewBtcDown, walletClient, writeContractAsync]);
+  }, [address, chainId, previewBtcDown, writeContractAsync]);
 
   const runBtcUp = useCallback(async () => {
     setError(null);
