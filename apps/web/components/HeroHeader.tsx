@@ -39,10 +39,10 @@ function Badge({ label }: { label: string }) {
         padding: "6px 10px",
         borderRadius: 999,
         border: "1px solid var(--border)",
-        background: "rgba(15,23,42,0.03)",
+        background: "var(--surface-2)",
         fontSize: 12,
         fontWeight: 650,
-        color: "rgba(15,23,42,0.72)"
+        color: "var(--text)"
       }}
     >
       {label}
