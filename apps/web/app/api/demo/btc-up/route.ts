@@ -89,8 +89,9 @@ export async function POST(req: Request) {
     }
 
     const rpcUrl = envRpcUrl();
+    const chainId = envChainId();
     const chain = defineChain({
-      id: envChainId(),
+      id: chainId,
       name: "Mezo Testnet",
       nativeCurrency: { name: "BTC", symbol: "BTC", decimals: 18 },
       rpcUrls: { default: { http: [rpcUrl] } }
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
         recipient: vault,
         nonce,
         deadline,
-        chainId: mezoChainId,
+        chainId,
         verifyingContract: MEZO.borrowerOperationsSignatures
       });
       const signature = (await sign({ hash: digest, privateKey: pk, to: "hex" })) as `0x${string}`;
