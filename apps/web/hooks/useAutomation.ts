@@ -1,19 +1,17 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAccount, useChainId, useWalletClient, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useWriteContract } from "wagmi";
 import { addresses } from "@/lib/addresses";
-import { vaultAbi } from "@/lib/trovePilotAbis";
+import { erc20Abi, vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO, mezoChainId } from "@/lib/mezo";
 import {
   mezoBorrowerOperationsAbi,
-  mezoBorrowerOperationsSignaturesAbi,
   mezoHintHelpersAbi,
   mezoSortedTrovesAbi,
   mezoTroveManagerAbi
 } from "@/lib/mezoAbis";
-import { computeAdjustTroveDigest } from "@/lib/borrowerOpsSignatures";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -56,24 +54,12 @@ export function useAutomation() {
   const { writeContractAsync } = useWriteContract();
   const { address } = useAccount();
   const chainId = useChainId();
-  const { signTypedDataAsync } = useSignTypedData();
-  const { data: walletClient } = useWalletClient();
   const [error, setError] = useState<Error | null>(null);
 
   const withVault = () => {
     if (!addresses.vault) throw new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
     return addresses.vault;
   };
-
-  const nonceFor = useCallback(async (): Promise<bigint> => {
-    if (!address) throw new Error("Connect a wallet");
-    return (await publicClient.readContract({
-      address: MEZO.borrowerOperationsSignatures,
-      abi: mezoBorrowerOperationsSignaturesAbi,
-      functionName: "getNonce",
-      args: [address]
-    })) as bigint;
-  }, [address]);
 
   const previewBtcDown = useCallback(async (): Promise<BtcDownPreview> => {
     if (!address) throw new Error("Connect a wallet");
@@ -257,50 +243,66 @@ export function useAutomation() {
 
       const preview = await previewBtcUp();
       if (preview.triggered && preview.mintAmount > 0n) {
-        if (!walletClient) throw new Error("Wallet client unavailable");
-        const nonce = await nonceFor();
-        const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-        const digest = computeAdjustTroveDigest({
-          collWithdrawal: 0n,
-          debtChange: preview.mintAmount,
-          isDebtIncrease: true,
-          assetAmount: 0n,
-          borrower: address,
-          recipient: withVault(),
-          nonce,
-          deadline,
-          chainId,
-          verifyingContract: MEZO.borrowerOperationsSignatures
-        });
-        let signature: `0x${string}`;
-        try {
-          signature = (await walletClient.request({ method: "eth_sign", params: [address, digest] })) as `0x${string}`;
-        } catch (e: any) {
-          const msg = (e?.shortMessage || e?.message || "").toLowerCase();
-          if (msg.includes("does not exist") || msg.includes("not available") || msg.includes("method not found")) {
-            throw new Error(
-              "Your wallet does not support `eth_sign`. Mezo BorrowerOperationsSignatures requires a raw digest signature for BTC Down/Up. Use MetaMask with eth_sign enabled (Advanced settings) or a wallet that supports eth_sign."
-            );
-          }
-          throw e;
-        }
+        if (!addresses.vault) throw new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
+
+        const [coll, debt, rate] = (await Promise.all([
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [address] }),
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [address] }),
+          publicClient.readContract({ address: MEZO.borrowerOperations, abi: mezoBorrowerOperationsAbi, functionName: "borrowingRate", args: [] })
+        ])) as [bigint, bigint, bigint];
+
+        const fee = (preview.mintAmount * rate) / 1_000_000_000_000_000_000n;
+        const newDebt = debt + preview.mintAmount + fee;
+        const nicr = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "computeNominalCR",
+          args: [coll, newDebt]
+        })) as bigint;
+
+        const seed = BigInt(Date.now());
+        const approx = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "getApproxHint",
+          args: [nicr, 50n, seed]
+        })) as any;
+        const hintAddress = (approx.hintAddress ?? approx[0]) as `0x${string}`;
+
+        const pos = (await publicClient.readContract({
+          address: MEZO.sortedTroves,
+          abi: mezoSortedTrovesAbi,
+          functionName: "findInsertPosition",
+          args: [nicr, hintAddress, hintAddress]
+        })) as any;
+        const upperHint = (pos.prevId ?? pos[0]) as `0x${string}`;
+        const lowerHint = (pos.nextId ?? pos[1]) as `0x${string}`;
 
         try {
           await publicClient.simulateContract({
             account: address,
-            address: withVault(),
-            abi: vaultAbi,
-            functionName: "runBtcUp",
-            args: [signature, deadline]
+            address: MEZO.borrowerOperations,
+            abi: mezoBorrowerOperationsAbi,
+            functionName: "withdrawMUSD",
+            args: [preview.mintAmount, upperHint, lowerHint]
           });
         } catch (e) {
           const err: any = e;
           const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-          throw new Error(`BTC Up mint would fail: ${msg}`);
+          throw new Error(`Mint would fail: ${msg}`);
         }
 
-        const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: [signature, deadline] });
-        await publicClient.waitForTransactionReceipt({ hash });
+        const mintHash = await writeContractAsync({
+          address: MEZO.borrowerOperations,
+          abi: mezoBorrowerOperationsAbi,
+          functionName: "withdrawMUSD",
+          args: [preview.mintAmount, upperHint, lowerHint]
+        });
+        await publicClient.waitForTransactionReceipt({ hash: mintHash });
+
+        await writeContractAsync({ address: MEZO.musd, abi: erc20Abi, functionName: "approve", args: [addresses.vault, preview.mintAmount] });
+        const depositHash = await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "depositReserveMUSD", args: [preview.mintAmount] });
+        await publicClient.waitForTransactionReceipt({ hash: depositHash });
         return;
       }
 
@@ -324,7 +326,7 @@ export function useAutomation() {
       setError(e as Error);
       throw e;
     }
-  }, [address, chainId, nonceFor, previewBtcUp, walletClient, writeContractAsync]);
+  }, [address, chainId, previewBtcUp, writeContractAsync]);
 
   const runPremium = useCallback(async () => {
     setError(null);
