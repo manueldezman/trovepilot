@@ -6,6 +6,7 @@ import { publicClient } from "@/lib/wagmi";
 import { MEZO } from "@/lib/mezo";
 import { mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { useSimulatedMarket } from "@/hooks/useSimulatedMarket";
+import { formatUnitsCeil } from "@/lib/format";
 
 export function useMezoTrove(user?: Address) {
   const { data: sim } = useSimulatedMarket(user);
@@ -48,9 +49,9 @@ export function useMezoTrove(user?: Address) {
         collateralRaw: collRaw,
         debtRaw,
         icrRaw,
-        collateral: `${formatUnits(collRaw, 18)} BTC`,
-        debt: `${formatUnits(debtRaw, 18)} MUSD`,
-        icr: icrRaw ? `${formatUnits(icrRaw, 18)}x` : "—",
+        collateral: `${formatUnitsCeil(collRaw, 18, 2)} BTC`,
+        debt: `${formatUnitsCeil(debtRaw, 18, 2)} MUSD`,
+        icr: icrRaw ? `${formatUnitsCeil(icrRaw, 18, 2)}x` : "—",
         statusLabel
       };
     }

@@ -7,13 +7,35 @@ import { useMounted } from "@/hooks/useMounted";
 import { useSimulationActions } from "@/hooks/useSimulationActions";
 import { useAutomation } from "@/hooks/useAutomation";
 import { PreviewModal } from "@/components/PreviewModal";
+import { formatUnitsCeil } from "@/lib/format";
 
 type Scenario = "btc_down" | "btc_up" | "premium" | "discount";
+
+function reviveBtcPreview(p: any): any {
+  if (!p || typeof p !== "object") return p;
+  const asBigint = (x: any) => (typeof x === "string" && /^[0-9]+$/.test(x) ? BigInt(x) : x);
+  // Preview structs are returned as named object props by viem in most cases; we only rely on names here.
+  const keys = [
+    "repayAmount",
+    "mintAmount",
+    "icr",
+    "btcPrice",
+    "bandLower",
+    "bandUpper",
+    "targetICR",
+    "musdReserve"
+  ];
+  const out: any = { ...p };
+  for (const k of keys) out[k] = asBigint(out[k]);
+  if (typeof out.triggered === "string") out.triggered = out.triggered === "true";
+  return out;
+}
 
 export function SimulationLab() {
   const mounted = useMounted();
   const { address } = useAccount();
   const shortAddr = useMemo(() => (mounted && address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null), [address, mounted]);
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_AUTOMATION === "1";
 
   const { setBtcDown, setBtcUp, setPremium103, setDiscount097, reset, error: simError } = useSimulationActions();
   const { previewBtcDown, previewBtcUp, previewPremium, previewDiscount, runBtcDown, runBtcUp, runPremium, runDiscount, error: autoError } = useAutomation();
@@ -48,6 +70,20 @@ export function SimulationLab() {
     setResetMsg(null);
 
     try {
+      if (demoMode && (next === "btc_down" || next === "btc_up")) {
+        if (!address) throw new Error("Connect the demo wallet first");
+        const pct = next === "btc_down" ? btcDownPct : btcUpPct;
+        const res = await fetch(`/api/demo/${next === "btc_down" ? "btc-down" : "btc-up"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "preview", pct, address })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Preview failed (${res.status})`);
+        const data = await res.json();
+        setPreview(reviveBtcPreview(data.preview));
+        return;
+      }
+
       await writeSim();
       const p =
         next === "btc_down"
@@ -68,6 +104,22 @@ export function SimulationLab() {
   async function confirm() {
     await wrap(async () => {
       if (!scenario) return;
+      if (demoMode && (scenario === "btc_down" || scenario === "btc_up")) {
+        if (!address) throw new Error("Connect the demo wallet first");
+        const pct = scenario === "btc_down" ? btcDownPct : btcUpPct;
+        const res = await fetch(`/api/demo/${scenario === "btc_down" ? "btc-down" : "btc-up"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "run", pct, address })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Execution failed (${res.status})`);
+        const data = await res.json();
+        // Refresh the modal preview post-run so the user sees the final state.
+        setPreview(reviveBtcPreview(data.previewAfter ?? data.preview));
+        setModalOpen(false);
+        return;
+      }
+
       if (scenario === "btc_down") await runBtcDown();
       else if (scenario === "btc_up") await runBtcUp();
       else if (scenario === "premium") await runPremium();
@@ -88,6 +140,11 @@ export function SimulationLab() {
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
       <h2 style={{ marginTop: 0 }}>Simulation Lab</h2>
       <div style={{ marginTop: -6, color: "var(--muted)", fontSize: 13 }}>Pick a scenario, review the preview, then Confirm to execute.</div>
+      {demoMode ? (
+        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 12, border: "1px solid var(--border)", background: "rgba(56,189,248,0.10)", color: "rgba(15,23,42,0.85)", fontSize: 12 }}>
+          Demo mode: BTC Up/Down executed by local signer.
+        </div>
+      ) : null}
       <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, fontFamily: "var(--mono)" }}>
         wallet: {shortAddr ? shortAddr : mounted ? "not connected" : "…"}
       </div>
@@ -226,14 +283,14 @@ function BtcDownRows({ preview }: { preview: any }) {
   return (
     <>
       <Row label="Sim BTC price" value={formatUnits(preview.btcPrice as bigint, 18)} />
-      <Row label="ICR" value={`${formatUnits(preview.icr as bigint, 18)}x`} />
-      <Row label="Band lower" value={`${formatUnits(preview.bandLower as bigint, 18)}x`} />
-      <Row label="Target ICR" value={`${formatUnits(preview.targetICR as bigint, 18)}x`} />
+      <Row label="ICR" value={`${formatUnitsCeil(preview.icr as bigint, 18, 2)}x`} />
+      <Row label="Band lower" value={`${formatUnitsCeil(preview.bandLower as bigint, 18, 2)}x`} />
+      <Row label="Target ICR" value={`${formatUnitsCeil(preview.targetICR as bigint, 18, 2)}x`} />
       <Row label="Triggered" value={preview.triggered ? "Yes" : "No"} />
-      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
+      <Row label="MUSD reserve" value={`${formatUnitsCeil(preview.musdReserve as bigint, 18, 2)} MUSD`} />
       {preview.triggered ? (
         <>
-          <Row label="Repay amount" value={`${formatUnits(preview.repayAmount as bigint, 18)} MUSD`} />
+          <Row label="Repay amount" value={`${formatUnitsCeil(preview.repayAmount as bigint, 18, 2)} MUSD`} />
           <Row label="Signature required" value={(preview.repayAmount as bigint) > 0n ? "Yes" : "No"} />
         </>
       ) : null}
@@ -245,13 +302,13 @@ function BtcUpRows({ preview }: { preview: any }) {
   return (
     <>
       <Row label="Sim BTC price" value={formatUnits(preview.btcPrice as bigint, 18)} />
-      <Row label="ICR" value={`${formatUnits(preview.icr as bigint, 18)}x`} />
-      <Row label="Band upper" value={`${formatUnits(preview.bandUpper as bigint, 18)}x`} />
-      <Row label="Target ICR" value={`${formatUnits(preview.targetICR as bigint, 18)}x`} />
+      <Row label="ICR" value={`${formatUnitsCeil(preview.icr as bigint, 18, 2)}x`} />
+      <Row label="Band upper" value={`${formatUnitsCeil(preview.bandUpper as bigint, 18, 2)}x`} />
+      <Row label="Target ICR" value={`${formatUnitsCeil(preview.targetICR as bigint, 18, 2)}x`} />
       <Row label="Triggered" value={preview.triggered ? "Yes" : "No"} />
       {preview.triggered ? (
         <>
-          <Row label="Mint amount (to reserve)" value={`${formatUnits(preview.mintAmount as bigint, 18)} MUSD`} />
+          <Row label="Mint amount (to reserve)" value={`${formatUnitsCeil(preview.mintAmount as bigint, 18, 2)} MUSD`} />
           <Row label="Signature required" value={(preview.mintAmount as bigint) > 0n ? "Yes" : "No"} />
         </>
       ) : null}
@@ -264,10 +321,10 @@ function PremiumRows({ preview }: { preview: any }) {
     <>
       <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
       <Row label="Active" value={preview.active ? "Yes" : "No"} />
-      <Row label="Sell MUSD" value={`${formatUnits(preview.sellMusd as bigint, 18)} MUSD`} />
-      <Row label="Est. USDC out" value={`${formatUnits(preview.estUsdcOut as bigint, 18)} USDC`} />
-      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
-      <Row label="USDC reserve" value={`${formatUnits(preview.usdcReserve as bigint, 18)} USDC`} />
+      <Row label="Sell MUSD" value={`${formatUnitsCeil(preview.sellMusd as bigint, 18, 2)} MUSD`} />
+      <Row label="Est. USDC out" value={`${formatUnitsCeil(preview.estUsdcOut as bigint, 18, 2)} USDC`} />
+      <Row label="MUSD reserve" value={`${formatUnitsCeil(preview.musdReserve as bigint, 18, 2)} MUSD`} />
+      <Row label="USDC reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} USDC`} />
     </>
   );
 }
@@ -277,11 +334,10 @@ function DiscountRows({ preview }: { preview: any }) {
     <>
       <Row label="Sim MUSD price" value={formatUnits(preview.musdPrice as bigint, 18)} />
       <Row label="Active" value={preview.active ? "Yes" : "No"} />
-      <Row label="Spend USDC" value={`${formatUnits(preview.spendUsdc as bigint, 18)} USDC`} />
-      <Row label="Est. MUSD out" value={`${formatUnits(preview.estMusdOut as bigint, 18)} MUSD`} />
-      <Row label="MUSD reserve" value={`${formatUnits(preview.musdReserve as bigint, 18)} MUSD`} />
-      <Row label="USDC reserve" value={`${formatUnits(preview.usdcReserve as bigint, 18)} USDC`} />
+      <Row label="Spend USDC" value={`${formatUnitsCeil(preview.spendUsdc as bigint, 18, 2)} USDC`} />
+      <Row label="Est. MUSD out" value={`${formatUnitsCeil(preview.estMusdOut as bigint, 18, 2)} MUSD`} />
+      <Row label="MUSD reserve" value={`${formatUnitsCeil(preview.musdReserve as bigint, 18, 2)} MUSD`} />
+      <Row label="USDC reserve" value={`${formatUnitsCeil(preview.usdcReserve as bigint, 18, 2)} USDC`} />
     </>
   );
 }
-

@@ -10,6 +10,7 @@ import { useProtocolBtcPrice } from "@/hooks/useProtocolBtcPrice";
 import { useProtocolTrove } from "@/hooks/useProtocolTrove";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
+import { formatUnitsCeil } from "@/lib/format";
 
 function clamp01(x: number) {
   if (x < 0) return 0;
@@ -69,19 +70,20 @@ export function IcrHealthCard() {
   return (
     <section
       style={{
-        padding: 18,
+        padding: 16,
         border: "1px solid var(--border)",
         borderRadius: 16,
         background: "var(--panel)",
         boxShadow: "var(--shadow2)",
-        height: "100%"
+        height: "100%",
+        minHeight: 164
       }}
     >
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: 13, color: "var(--muted)", letterSpacing: 0.2 }}>Position Health</div>
           <div style={{ fontSize: 34, letterSpacing: -0.6, fontWeight: 760, lineHeight: 1 }}>
-            {riskIcr ? formatUnits(riskIcr, 18) : protocolLoading || troveLoading ? "…" : "—"}
+            {riskIcr ? formatUnitsCeil(riskIcr, 18, 2) : protocolLoading || troveLoading ? "…" : "—"}
             <span style={{ fontSize: 16, color: "var(--muted)", marginLeft: 6 }}>ICR</span>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -101,7 +103,7 @@ export function IcrHealthCard() {
             </span>
             <span style={{ color: "var(--muted)", fontSize: 12 }}>
               protocol BTC: {protocolPrice ? formatUnits(protocolPrice, 18) : "—"} • sim BTC: {sim?.btcPrice ? formatUnits(sim.btcPrice, 18) : "—"} • target:{" "}
-              {formatUnits(safetyICR.target, 18)} (band {formatUnits(safetyICR.lower, 18)}–{formatUnits(safetyICR.upper, 18)})
+              {formatUnitsCeil(safetyICR.target, 18, 2)} (band {formatUnitsCeil(safetyICR.lower, 18, 2)}–{formatUnitsCeil(safetyICR.upper, 18, 2)})
             </span>
           </div>
 

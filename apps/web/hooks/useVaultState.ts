@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { type Address, formatUnits } from "viem";
+import { type Address } from "viem";
 import { publicClient } from "@/lib/wagmi";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
+import { formatUnitsCeil } from "@/lib/format";
 
 export function useVaultState(user?: Address) {
   return useQuery({
@@ -33,8 +34,8 @@ export function useVaultState(user?: Address) {
       return {
         musdReserveRaw: musd as bigint,
         usdcReserveRaw: usdc as bigint,
-        musdReserve: `${formatUnits(musd as bigint, 18)} MUSD`,
-        usdcReserve: `${formatUnits(usdc as bigint, 18)} USDC`,
+        musdReserve: `${formatUnitsCeil(musd as bigint, 18, 2)} MUSD`,
+        usdcReserve: `${formatUnitsCeil(usdc as bigint, 18, 2)} USDC`,
         rulesSet
       };
     }

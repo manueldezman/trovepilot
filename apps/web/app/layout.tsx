@@ -3,13 +3,7 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
 import { SidebarNav } from "@/components/SidebarNav";
 import { TopBar } from "@/components/TopBar";
-import { Plus_Jakarta_Sans } from "next/font/google";
-
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-sans"
-});
+import { GeistSans } from "geist/font/sans";
 
 export const metadata = {
   title: "TrovePilot",
@@ -19,7 +13,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={plusJakarta.className}>
+      <body className={GeistSans.variable}>
         <Providers>
           <div className="appFrame">
             <SidebarNav />

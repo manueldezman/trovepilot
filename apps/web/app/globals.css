@@ -1,3 +1,10 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
 :root {
   color-scheme: light;
 
@@ -25,8 +32,9 @@
   --criticalSoft: color-mix(in srgb, var(--critical) 10%, transparent);
 
   /* Typography */
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --heading: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Shadows (soft elevation like reference) */
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
@@ -62,6 +70,7 @@ h2,
 h3 {
   letter-spacing: -0.02em;
   font-weight: 700;
+  font-family: var(--heading);
 }
 
 h1 {
@@ -99,6 +108,26 @@ p {
 
 .appContent {
   padding: 22px;
+}
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.span2 {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 860px) {
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+  }
+  .span2 {
+    grid-column: auto;
+  }
 }
 
 .topBar {
