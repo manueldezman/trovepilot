@@ -8,6 +8,7 @@ import { vaultAbi } from "@/lib/trovePilotAbis";
 import { publicClient } from "@/lib/wagmi";
 import { MEZO } from "@/lib/mezo";
 import { mezoPriceFeedAbi } from "@/lib/mezoAbis";
+import { notifyError } from "@/lib/notify";
 
 export function useSimulationActions() {
   const { writeContractAsync } = useWriteContract();
@@ -40,7 +41,9 @@ export function useSimulationActions() {
         const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
         await publicClient.waitForTransactionReceipt({ hash });
       } catch (e) {
-        setError(e as Error);
+        const err = e as Error;
+        setError(err);
+        notifyError(err.message);
         throw e;
       }
     },
@@ -57,7 +60,9 @@ export function useSimulationActions() {
         const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedBTCPrice", args: [next] });
         await publicClient.waitForTransactionReceipt({ hash });
       } catch (e) {
-        setError(e as Error);
+        const err = e as Error;
+        setError(err);
+        notifyError(err.message);
         throw e;
       }
     },
@@ -70,7 +75,9 @@ export function useSimulationActions() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("1.03", 18)] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [writeContractAsync]);
@@ -81,7 +88,9 @@ export function useSimulationActions() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("0.97", 18)] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [writeContractAsync]);
@@ -99,7 +108,9 @@ export function useSimulationActions() {
       const h2 = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "setSimulatedMUSDPrice", args: [parseUnits("1.00", 18)] });
       await publicClient.waitForTransactionReceipt({ hash: h2 });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [writeContractAsync]);

@@ -15,7 +15,8 @@ export function useTroveStatus(user?: Address) {
   return useQuery({
     queryKey: ["troveStatus", user],
     enabled: Boolean(user),
-    refetchInterval: 12_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async (): Promise<TroveStatus> => {
       if (!user) throw new Error("Missing user");
       const status = (await publicClient.readContract({
@@ -28,4 +29,3 @@ export function useTroveStatus(user?: Address) {
     }
   });
 }
-

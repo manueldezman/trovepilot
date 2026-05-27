@@ -18,7 +18,8 @@ export function useProtocolTrove(user?: Address, price?: bigint) {
   return useQuery({
     queryKey: ["protocolTrove", user, price?.toString() ?? "none"],
     enabled: Boolean(user && price),
-    refetchInterval: 12_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async (): Promise<ProtocolTrove> => {
       if (!user) throw new Error("Missing user");
       if (!price) throw new Error("Missing price");

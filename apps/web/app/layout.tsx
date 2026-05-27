@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
 import { SidebarNav } from "@/components/SidebarNav";
 import { TopBar } from "@/components/TopBar";
+import { ToastViewport } from "@/components/ToastViewport";
 import { GeistSans } from "geist/font/sans";
 
 export const metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <div className="appContent">{children}</div>
             </div>
           </div>
+          <ToastViewport />
         </Providers>
       </body>
     </html>

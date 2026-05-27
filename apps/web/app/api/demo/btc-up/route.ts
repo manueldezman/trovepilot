@@ -3,13 +3,11 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount, sign } from "viem/accounts";
 import { defineChain } from "viem";
 import { vaultAbi } from "@/lib/trovePilotAbis";
-import { mezoPriceFeedAbi, mezoBorrowerOperationsSignaturesAbi, mezoBorrowerOperationsAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
-import { computeAdjustTroveDigest } from "@/lib/borrowerOpsSignatures";
+import { mezoPriceFeedAbi, mezoBorrowerOperationsAbi, mezoHintHelpersAbi, mezoSortedTrovesAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { addresses } from "@/lib/addresses";
 
 const MEZO = {
   borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
-  borrowerOperationsSignatures: "0xD757e3646AF370b15f32EB557F0F8380Df7D639e",
   troveManager: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
   sortedTroves: "0x722E4D24FD6Ff8b0AC679450F3D91294607268fA",
   hintHelpers: "0x4e4cBA3779d56386ED43631b4dCD6d8EacEcBCF6",
@@ -151,47 +149,134 @@ export async function POST(req: Request) {
 
     let runTx: `0x${string}` | null = null;
     let setTx: `0x${string}` | null = null;
+    let runError: string | null = null;
+    let attemptedSet = false;
+    let attemptedRun = false;
+    let stage: "none" | "set" | "run" = "none";
     const shouldRun = preview.triggered;
     const mintAmount = BigInt(preview.mintAmount);
-    if (mode === "run" && shouldRun && mintAmount > 0n) {
-      setTx = await walletClient.writeContract({
-        address: vault,
-        abi: vaultAbi,
-        functionName: "setSimulatedBTCPrice",
-        args: [next],
-        gas: 250_000n
-      });
-      await publicClient.waitForTransactionReceipt({ hash: setTx });
+    if (mode === "run") {
+      if (!shouldRun) {
+        runError = "Execution skipped: trigger is false at run time.";
+      } else if (mintAmount <= 0n) {
+        runError = "Execution skipped: mint amount is 0.";
+      } else {
+      try {
+        attemptedSet = true;
+        stage = "set";
+        setTx = await walletClient.writeContract({
+          address: vault,
+          abi: vaultAbi,
+          functionName: "setSimulatedBTCPrice",
+          args: [next],
+          gas: 250_000n
+        });
+        const setReceipt = await publicClient.waitForTransactionReceipt({ hash: setTx });
+        if (setReceipt.status !== "success") {
+          runError = "setSimulatedBTCPrice transaction reverted";
+          throw new Error(runError);
+        }
 
-      const nonce = (await publicClient.readContract({
-        address: MEZO.borrowerOperationsSignatures,
-        abi: mezoBorrowerOperationsSignaturesAbi,
-        functionName: "getNonce",
-        args: [account.address]
-      })) as bigint;
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-      const digest = computeAdjustTroveDigest({
-        collWithdrawal: 0n,
-        debtChange: mintAmount,
-        isDebtIncrease: true,
-        assetAmount: 0n,
-        borrower: account.address,
-        recipient: vault,
-        nonce,
-        deadline,
-        chainId,
-        verifyingContract: MEZO.borrowerOperationsSignatures
-      });
-      const signature = (await sign({ hash: digest, privateKey: pk, to: "hex" })) as `0x${string}`;
+        attemptedRun = true;
+        stage = "run";
 
-      runTx = await walletClient.writeContract({
-        address: vault,
-        abi: vaultAbi,
-        functionName: "runBtcUp",
-        args: [signature, deadline],
-        gas: 1_000_000n
-      });
-      await publicClient.waitForTransactionReceipt({ hash: runTx });
+        // Production-safe path for demo mode:
+        // 1) Mint MUSD to borrower wallet via BorrowerOperations.withdrawMUSD
+        // 2) Approve vault
+        // 3) Deposit minted MUSD to reserve
+        const [collNow, debtNow, rate] = (await Promise.all([
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [account.address] }),
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [account.address] }),
+          publicClient.readContract({ address: MEZO.borrowerOperations, abi: mezoBorrowerOperationsAbi, functionName: "borrowingRate" })
+        ])) as [bigint, bigint, bigint];
+
+        const fee = (mintAmount * rate) / 10n ** 18n;
+        const newDebt = debtNow + mintAmount + fee;
+        const nicr = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "computeNominalCR",
+          args: [collNow, newDebt]
+        })) as bigint;
+        const seed = BigInt(Date.now());
+        const approx = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "getApproxHint",
+          args: [nicr, 50n, seed]
+        })) as any;
+        const hintAddress = (approx.hintAddress ?? approx[0]) as `0x${string}`;
+        const pos = (await publicClient.readContract({
+          address: MEZO.sortedTroves,
+          abi: mezoSortedTrovesAbi,
+          functionName: "findInsertPosition",
+          args: [nicr, hintAddress, hintAddress]
+        })) as any;
+        const upperHint = (pos.prevId ?? pos[0]) as `0x${string}`;
+        const lowerHint = (pos.nextId ?? pos[1]) as `0x${string}`;
+
+        try {
+          await publicClient.simulateContract({
+            account: account.address,
+            address: MEZO.borrowerOperations,
+            abi: mezoBorrowerOperationsAbi,
+            functionName: "withdrawMUSD",
+            args: [mintAmount, upperHint, lowerHint]
+          });
+        } catch (e: any) {
+          runError = e?.shortMessage || e?.message || "withdrawMUSD simulation failed";
+          throw new Error(runError);
+        }
+
+        runTx = await walletClient.writeContract({
+          address: MEZO.borrowerOperations,
+          abi: mezoBorrowerOperationsAbi,
+          functionName: "withdrawMUSD",
+          args: [mintAmount, upperHint, lowerHint],
+          gas: 1_000_000n
+        });
+        const mintReceipt = await publicClient.waitForTransactionReceipt({ hash: runTx });
+        if (mintReceipt.status !== "success") {
+          runError = "withdrawMUSD transaction reverted";
+          throw new Error(runError);
+        }
+
+        const approveTx = await walletClient.writeContract({
+          address: MEZO.musd,
+          abi: [
+            {
+              type: "function",
+              name: "approve",
+              stateMutability: "nonpayable",
+              inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
+              outputs: [{ type: "bool" }]
+            }
+          ] as const,
+          functionName: "approve",
+          args: [vault, mintAmount],
+          gas: 200_000n
+        });
+        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveTx });
+        if (approveReceipt.status !== "success") {
+          runError = "approve transaction reverted";
+          throw new Error(runError);
+        }
+
+        const depositTx = await walletClient.writeContract({
+          address: vault,
+          abi: vaultAbi,
+          functionName: "depositReserveMUSD",
+          args: [mintAmount],
+          gas: 350_000n
+        });
+        const depositReceipt = await publicClient.waitForTransactionReceipt({ hash: depositTx });
+        if (depositReceipt.status !== "success") {
+          runError = "depositReserveMUSD transaction reverted";
+        }
+      } catch (e: any) {
+        runError = e?.shortMessage || e?.message || "BTC up execution failed";
+      }
+      }
     }
 
     const previewAfter =
@@ -206,6 +291,12 @@ export async function POST(req: Request) {
       demoAddress: account.address,
       setTx,
       runTx,
+      runError,
+      attemptedSet,
+      attemptedRun,
+      stage,
+      shouldRun,
+      mintAmount: mintAmount.toString(),
       preview: jsonSafe(preview),
       previewAfter: jsonSafe(previewAfter)
     });

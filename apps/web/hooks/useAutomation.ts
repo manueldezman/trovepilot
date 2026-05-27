@@ -12,6 +12,7 @@ import {
   mezoSortedTrovesAbi,
   mezoTroveManagerAbi
 } from "@/lib/mezoAbis";
+import { notifyError } from "@/lib/notify";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -247,25 +248,16 @@ export function useAutomation() {
         await publicClient.waitForTransactionReceipt({ hash: repayHash });
         return;
       }
-
-      try {
-        await publicClient.simulateContract({
-          account: address,
-          address: withVault(),
-          abi: vaultAbi,
-          functionName: "runBtcDown",
-          args: ["0x", 0n]
-        });
-      } catch (e) {
-        const err: any = e;
-        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-        throw new Error(`BTC Down would fail: ${msg}`);
+      if (!preview.triggered) {
+        throw new Error("BTC Down not triggered for current simulated state");
       }
-
-      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: ["0x", 0n] });
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (preview.repayAmount <= 0n) {
+        throw new Error("No repay amount available");
+      }
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, previewBtcDown, writeContractAsync]);
@@ -344,25 +336,13 @@ export function useAutomation() {
       if (preview.triggered && preview.mintAmount === 0n) {
         throw new Error("No borrowing capacity remaining");
       }
-
-      try {
-        await publicClient.simulateContract({
-          account: address,
-          address: withVault(),
-          abi: vaultAbi,
-          functionName: "runBtcUp",
-          args: ["0x", 0n]
-        });
-      } catch (e) {
-        const err: any = e;
-        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-        throw new Error(`BTC Up would fail: ${msg}`);
+      if (!preview.triggered) {
+        throw new Error("BTC Up not triggered for current simulated state");
       }
-
-      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: ["0x", 0n] });
-      await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, previewBtcUp, writeContractAsync]);
@@ -375,7 +355,9 @@ export function useAutomation() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runPremium", args: [] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, writeContractAsync]);
@@ -388,7 +370,9 @@ export function useAutomation() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runDiscount", args: [] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, writeContractAsync]);

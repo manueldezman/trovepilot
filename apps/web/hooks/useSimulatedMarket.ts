@@ -14,7 +14,8 @@ export function useSimulatedMarket(user?: Address) {
   return useQuery({
     queryKey: ["simMarketV3", user],
     enabled: Boolean(user && addresses.vault),
-    refetchInterval: 7_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       if (!user) throw new Error("Missing user");
       if (!addresses.vault) throw new Error("Missing vault address");
@@ -32,4 +33,3 @@ export function useSimulatedMarket(user?: Address) {
     }
   });
 }
-
