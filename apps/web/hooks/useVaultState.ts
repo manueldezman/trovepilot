@@ -35,7 +35,7 @@ export function useVaultState(user?: Address) {
         musdReserveRaw: musd as bigint,
         usdcReserveRaw: usdc as bigint,
         musdReserve: `${formatUnitsCeil(musd as bigint, 18, 2)} MUSD`,
-        usdcReserve: `${formatUnitsCeil(usdc as bigint, 18, 2)} USDC`,
+        usdcReserve: `${formatUnitsCeil(usdc as bigint, 18, 2)} MUSD`,
         rulesSet
       };
     }
