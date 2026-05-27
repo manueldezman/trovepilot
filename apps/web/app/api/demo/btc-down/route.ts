@@ -1,12 +1,29 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount, sign } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 import { defineChain } from "viem";
-import { MEZO, mezoChainId, mezoRpcUrl } from "@/lib/mezo";
 import { vaultAbi } from "@/lib/trovePilotAbis";
-import { mezoPriceFeedAbi, mezoBorrowerOperationsSignaturesAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
-import { computeRepayMusdDigest } from "@/lib/borrowerOpsSignatures";
+import { mezoPriceFeedAbi, mezoBorrowerOperationsAbi, mezoHintHelpersAbi, mezoSortedTrovesAbi, mezoTroveManagerAbi } from "@/lib/mezoAbis";
 import { addresses } from "@/lib/addresses";
+
+const MEZO = {
+  borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
+  troveManager: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
+  sortedTroves: "0x722E4D24FD6Ff8b0AC679450F3D91294607268fA",
+  hintHelpers: "0x4e4cBA3779d56386ED43631b4dCD6d8EacEcBCF6",
+  priceFeed: "0x86bCF0841622a5dAC14A313a15f96A95421b9366",
+  musd: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503"
+} as const;
+
+function envChainId(): number {
+  const v = process.env.NEXT_PUBLIC_MEZO_CHAIN_ID;
+  const n = v ? Number(v) : 31611;
+  return Number.isFinite(n) ? n : 31611;
+}
+
+function envRpcUrl(): string {
+  return process.env.NEXT_PUBLIC_MEZO_RPC_URL || "https://rpc.test.mezo.org";
+}
 
 type Body = {
   mode: "preview" | "run";
@@ -70,15 +87,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Connected wallet (${body.address}) does not match demo signer (${account.address})` }, { status: 400 });
     }
 
+    const rpcUrl = envRpcUrl();
+    const chainId = envChainId();
     const chain = defineChain({
-      id: mezoChainId,
+      id: chainId,
       name: "Mezo Testnet",
       nativeCurrency: { name: "BTC", symbol: "BTC", decimals: 18 },
-      rpcUrls: { default: { http: [mezoRpcUrl] } }
+      rpcUrls: { default: { http: [rpcUrl] } }
     });
 
-    const publicClient = createPublicClient({ chain, transport: http(mezoRpcUrl) });
-    const walletClient = createWalletClient({ chain, transport: http(mezoRpcUrl), account });
+    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+    const walletClient = createWalletClient({ chain, transport: http(rpcUrl), account });
 
     const pct = clampPct(body.pct);
     const [simBtc, protocolBtc] = await Promise.all([
@@ -134,42 +153,106 @@ export async function POST(req: Request) {
 
     let runTx: `0x${string}` | null = null;
     let setTx: `0x${string}` | null = null;
-    if (mode === "run" && shouldRun && repayAmount > 0n) {
-      // Now apply the simulated price onchain (compounds only on run).
-      setTx = await walletClient.writeContract({
-        address: vault,
-        abi: vaultAbi,
-        functionName: "setSimulatedBTCPrice",
-        args: [next],
-        gas: 250_000n
-      });
-      await publicClient.waitForTransactionReceipt({ hash: setTx });
+    let runError: string | null = null;
+    let attemptedSet = false;
+    let attemptedRun = false;
+    let stage: "none" | "set" | "run" = "none";
+    if (mode === "run") {
+      if (!shouldRun) {
+        runError = "Execution skipped: trigger is false at run time.";
+      } else if (repayAmount <= 0n) {
+        runError = "Execution skipped: repay amount is 0.";
+      } else {
+      try {
+        // Now apply the simulated price onchain (compounds only on run).
+        attemptedSet = true;
+        stage = "set";
+        setTx = await walletClient.writeContract({
+          address: vault,
+          abi: vaultAbi,
+          functionName: "setSimulatedBTCPrice",
+          args: [next],
+          gas: 250_000n
+        });
+        const setReceipt = await publicClient.waitForTransactionReceipt({ hash: setTx });
+        if (setReceipt.status !== "success") {
+          runError = "setSimulatedBTCPrice transaction reverted";
+          throw new Error(runError);
+        }
 
-      const nonce = (await publicClient.readContract({
-        address: MEZO.borrowerOperationsSignatures,
-        abi: mezoBorrowerOperationsSignaturesAbi,
-        functionName: "getNonce",
-        args: [account.address]
-      })) as bigint;
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
-      const digest = computeRepayMusdDigest({
-        amount: repayAmount,
-        borrower: account.address,
-        nonce,
-        deadline,
-        chainId: mezoChainId,
-        verifyingContract: MEZO.borrowerOperationsSignatures
-      });
-      const signature = (await sign({ hash: digest, privateKey: pk, to: "hex" })) as `0x${string}`;
+        // Production-safe path for demo mode:
+        // 1) withdraw reserve from vault to wallet
+        // 2) repay from wallet via BorrowerOperations.repayMUSD
+        attemptedRun = true;
+        stage = "run";
+        const withdrawTx = await walletClient.writeContract({
+          address: vault,
+          abi: vaultAbi,
+          functionName: "withdrawReserveMUSD",
+          args: [repayAmount],
+          gas: 350_000n
+        });
+        const withdrawReceipt = await publicClient.waitForTransactionReceipt({ hash: withdrawTx });
+        if (withdrawReceipt.status !== "success") {
+          runError = "withdrawReserveMUSD transaction reverted";
+          throw new Error(runError);
+        }
 
-      runTx = await walletClient.writeContract({
-        address: vault,
-        abi: vaultAbi,
-        functionName: "runBtcDown",
-        args: [signature, deadline],
-        gas: 800_000n
-      });
-      await publicClient.waitForTransactionReceipt({ hash: runTx });
+        const [collNow, debtNow] = (await Promise.all([
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveColl", args: [account.address] }),
+          publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [account.address] })
+        ])) as [bigint, bigint];
+        const newDebt = debtNow > repayAmount ? debtNow - repayAmount : 0n;
+        const nicr = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "computeNominalCR",
+          args: [collNow, newDebt]
+        })) as bigint;
+        const seed = BigInt(Date.now());
+        const approx = (await publicClient.readContract({
+          address: MEZO.hintHelpers,
+          abi: mezoHintHelpersAbi,
+          functionName: "getApproxHint",
+          args: [nicr, 50n, seed]
+        })) as any;
+        const hintAddress = (approx.hintAddress ?? approx[0]) as `0x${string}`;
+        const pos = (await publicClient.readContract({
+          address: MEZO.sortedTroves,
+          abi: mezoSortedTrovesAbi,
+          functionName: "findInsertPosition",
+          args: [nicr, hintAddress, hintAddress]
+        })) as any;
+        const upperHint = (pos.prevId ?? pos[0]) as `0x${string}`;
+        const lowerHint = (pos.nextId ?? pos[1]) as `0x${string}`;
+
+        try {
+          await publicClient.simulateContract({
+            account: account.address,
+            address: MEZO.borrowerOperations,
+            abi: mezoBorrowerOperationsAbi,
+            functionName: "repayMUSD",
+            args: [repayAmount, upperHint, lowerHint]
+          });
+        } catch (e: any) {
+          runError = e?.shortMessage || e?.message || "repayMUSD simulation failed";
+          throw new Error(runError);
+        }
+        runTx = await walletClient.writeContract({
+          address: MEZO.borrowerOperations,
+          abi: mezoBorrowerOperationsAbi,
+          functionName: "repayMUSD",
+          args: [repayAmount, upperHint, lowerHint],
+          gas: 800_000n
+        });
+        const runReceipt = await publicClient.waitForTransactionReceipt({ hash: runTx });
+        if (runReceipt.status !== "success") {
+          runError = "repayMUSD transaction reverted";
+        }
+      } catch (e: any) {
+        runError = e?.shortMessage || e?.message || "BTC down execution failed";
+      }
+      }
     }
 
     const previewAfter =
@@ -184,6 +267,12 @@ export async function POST(req: Request) {
       demoAddress: account.address,
       setTx,
       runTx,
+      runError,
+      attemptedSet,
+      attemptedRun,
+      stage,
+      shouldRun,
+      repayAmount: repayAmount.toString(),
       preview: jsonSafe(preview),
       previewAfter: jsonSafe(previewAfter)
     });

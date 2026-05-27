@@ -12,6 +12,7 @@ import {
   mezoSortedTrovesAbi,
   mezoTroveManagerAbi
 } from "@/lib/mezoAbis";
+import { notifyError } from "@/lib/notify";
 
 export type BtcDownPreview = {
   triggered: boolean;
@@ -25,7 +26,10 @@ export type BtcDownPreview = {
 
 export type BtcUpPreview = {
   triggered: boolean;
-  mintAmount: bigint;
+  mintAmount: bigint; // clamped
+  mintAmountRaw: bigint; // from vault preview (unclamped)
+  maxMintAllowed: bigint; // derived from Mezo max borrowing capacity headroom
+  cappedByCapacity: boolean;
   icr: bigint;
   btcPrice: bigint;
   bandUpper: bigint;
@@ -90,13 +94,45 @@ export function useAutomation() {
       args: [address]
     })) as any;
 
+    const triggered = Boolean(res.triggered ?? res[0]);
+    const mintAmountRaw = (res.mintAmount ?? res[1]) as bigint;
+    const icr = (res.icr ?? res[2]) as bigint;
+    const btcPrice = (res.btcPrice ?? res[3]) as bigint;
+    const bandUpper = (res.bandUpper ?? res[4]) as bigint;
+    const targetICR = (res.targetICR ?? res[5]) as bigint;
+
+    let maxMintAllowed = 0n;
+    let mintAmount = mintAmountRaw;
+    let cappedByCapacity = false;
+
+    // Capacity clamp: prevent proposing a mint larger than Mezo allows.
+    if (triggered && mintAmountRaw > 0n) {
+      const [debtComposite, capComposite, rate] = (await Promise.all([
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveDebt", args: [address] }),
+        publicClient.readContract({ address: MEZO.troveManager, abi: mezoTroveManagerAbi, functionName: "getTroveMaxBorrowingCapacity", args: [address] }),
+        publicClient.readContract({ address: MEZO.borrowerOperations, abi: mezoBorrowerOperationsAbi, functionName: "borrowingRate", args: [] })
+      ])) as [bigint, bigint, bigint];
+
+      const headroom = capComposite > debtComposite ? capComposite - debtComposite : 0n;
+      maxMintAllowed = (headroom * 1_000_000_000_000_000_000n) / (1_000_000_000_000_000_000n + rate);
+      if (maxMintAllowed > 0n) maxMintAllowed -= 1n; // small buffer for rounding
+
+      if (mintAmountRaw > maxMintAllowed) {
+        mintAmount = maxMintAllowed;
+        cappedByCapacity = true;
+      }
+    }
+
     return {
-      triggered: Boolean(res.triggered ?? res[0]),
-      mintAmount: (res.mintAmount ?? res[1]) as bigint,
-      icr: (res.icr ?? res[2]) as bigint,
-      btcPrice: (res.btcPrice ?? res[3]) as bigint,
-      bandUpper: (res.bandUpper ?? res[4]) as bigint,
-      targetICR: (res.targetICR ?? res[5]) as bigint
+      triggered,
+      mintAmount,
+      mintAmountRaw,
+      maxMintAllowed,
+      cappedByCapacity,
+      icr,
+      btcPrice,
+      bandUpper,
+      targetICR
     };
   }, [address]);
 
@@ -212,25 +248,16 @@ export function useAutomation() {
         await publicClient.waitForTransactionReceipt({ hash: repayHash });
         return;
       }
-
-      try {
-        await publicClient.simulateContract({
-          account: address,
-          address: withVault(),
-          abi: vaultAbi,
-          functionName: "runBtcDown",
-          args: ["0x", 0n]
-        });
-      } catch (e) {
-        const err: any = e;
-        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-        throw new Error(`BTC Down would fail: ${msg}`);
+      if (!preview.triggered) {
+        throw new Error("BTC Down not triggered for current simulated state");
       }
-
-      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcDown", args: ["0x", 0n] });
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (preview.repayAmount <= 0n) {
+        throw new Error("No repay amount available");
+      }
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, previewBtcDown, writeContractAsync]);
@@ -306,24 +333,16 @@ export function useAutomation() {
         return;
       }
 
-      try {
-        await publicClient.simulateContract({
-          account: address,
-          address: withVault(),
-          abi: vaultAbi,
-          functionName: "runBtcUp",
-          args: ["0x", 0n]
-        });
-      } catch (e) {
-        const err: any = e;
-        const msg = err?.shortMessage || err?.reason || err?.message || "Simulation failed";
-        throw new Error(`BTC Up would fail: ${msg}`);
+      if (preview.triggered && preview.mintAmount === 0n) {
+        throw new Error("No borrowing capacity remaining");
       }
-
-      const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runBtcUp", args: ["0x", 0n] });
-      await publicClient.waitForTransactionReceipt({ hash });
+      if (!preview.triggered) {
+        throw new Error("BTC Up not triggered for current simulated state");
+      }
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, previewBtcUp, writeContractAsync]);
@@ -336,7 +355,9 @@ export function useAutomation() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runPremium", args: [] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, writeContractAsync]);
@@ -349,7 +370,9 @@ export function useAutomation() {
       const hash = await writeContractAsync({ address: withVault(), abi: vaultAbi, functionName: "runDiscount", args: [] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e) {
-      setError(e as Error);
+      const err = e as Error;
+      setError(err);
+      notifyError(err.message);
       throw e;
     }
   }, [address, chainId, writeContractAsync]);

@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { formatUnits } from "viem";
 import { addresses } from "@/lib/addresses";
 import { vaultAbi } from "@/lib/trovePilotAbis";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 export type RulesPayload = {
   targetICR: bigint;
@@ -84,13 +85,22 @@ export function useRules() {
   const setRules = useCallback(
     async (payload: RulesPayload) => {
       setError(null);
-      if (!addresses.vault) throw new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
+      if (!addresses.vault) {
+        const err = new Error("Missing vault address (set NEXT_PUBLIC_TROVE_PILOT_VAULT_ADDRESS)");
+        setError(err);
+        notifyError(err.message, "Configuration required");
+        return false;
+      }
       setIsPending(true);
       try {
         await writeContractAsync({ address: addresses.vault, abi: vaultAbi, functionName: "setRules", args: [payload] });
+        notifySuccess("Strategy rules saved onchain.");
+        return true;
       } catch (e) {
-        setError(e as Error);
-        throw e;
+        const err = e as Error;
+        setError(err);
+        notifyError(err.message);
+        return false;
       } finally {
         setIsPending(false);
       }
@@ -110,4 +120,3 @@ function bpsToPercentString(bps: bigint): string {
   const frac2 = frac.toString().padStart(2, "0").replace(/0+$/, "");
   return `${sign}${whole.toString()}.${frac2}`;
 }
-

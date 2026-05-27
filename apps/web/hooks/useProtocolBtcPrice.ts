@@ -8,7 +8,8 @@ import { mezoPriceFeedAbi } from "@/lib/mezoAbis";
 export function useProtocolBtcPrice() {
   return useQuery({
     queryKey: ["protocolBtcPrice"],
-    refetchInterval: 12_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       const price = await publicClient.readContract({
         address: MEZO.priceFeed,
@@ -19,4 +20,3 @@ export function useProtocolBtcPrice() {
     }
   });
 }
-

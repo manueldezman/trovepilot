@@ -51,6 +51,24 @@ export function SimulationLab() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<any>(null);
   const [previewErr, setPreviewErr] = useState<string | null>(null);
+  const [runMeta, setRunMeta] = useState<{
+    setTx?: string | null;
+    runTx?: string | null;
+    runError?: string | null;
+    attemptedSet?: boolean;
+    attemptedRun?: boolean;
+    stage?: string | null;
+    shouldRun?: boolean;
+  } | null>(null);
+  const [lastRunMeta, setLastRunMeta] = useState<{
+    setTx?: string | null;
+    runTx?: string | null;
+    runError?: string | null;
+    attemptedSet?: boolean;
+    attemptedRun?: boolean;
+    stage?: string | null;
+    shouldRun?: boolean;
+  } | null>(null);
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -67,6 +85,7 @@ export function SimulationLab() {
     setLoading(true);
     setPreviewErr(null);
     setPreview(null);
+    setRunMeta(null);
     setResetMsg(null);
 
     try {
@@ -102,6 +121,8 @@ export function SimulationLab() {
   }
 
   async function confirm() {
+    // Close immediately so users don't double-submit while the async action runs.
+    setModalOpen(false);
     await wrap(async () => {
       if (!scenario) return;
       if (demoMode && (scenario === "btc_down" || scenario === "btc_up")) {
@@ -116,7 +137,26 @@ export function SimulationLab() {
         const data = await res.json();
         // Refresh the modal preview post-run so the user sees the final state.
         setPreview(reviveBtcPreview(data.previewAfter ?? data.preview));
-        setModalOpen(false);
+        setRunMeta({
+          setTx: data.setTx ?? null,
+          runTx: data.runTx ?? null,
+          runError: data.runError ?? null,
+          attemptedSet: Boolean(data.attemptedSet),
+          attemptedRun: Boolean(data.attemptedRun),
+          stage: data.stage ?? null,
+          shouldRun: typeof data.shouldRun === "boolean" ? data.shouldRun : undefined
+        });
+        setLastRunMeta({
+          setTx: data.setTx ?? null,
+          runTx: data.runTx ?? null,
+          runError: data.runError ?? null,
+          attemptedSet: Boolean(data.attemptedSet),
+          attemptedRun: Boolean(data.attemptedRun),
+          stage: data.stage ?? null,
+          shouldRun: typeof data.shouldRun === "boolean" ? data.shouldRun : undefined
+        });
+        if (data.runError) return;
+        if (!data.runTx) return;
         return;
       }
 
@@ -124,7 +164,6 @@ export function SimulationLab() {
       else if (scenario === "btc_up") await runBtcUp();
       else if (scenario === "premium") await runPremium();
       else await runDiscount();
-      setModalOpen(false);
     });
   }
 
@@ -140,11 +179,6 @@ export function SimulationLab() {
     <section style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, background: "var(--panel)" }}>
       <h2 style={{ marginTop: 0 }}>Simulation Lab</h2>
       <div style={{ marginTop: -6, color: "var(--muted)", fontSize: 13 }}>Pick a scenario, review the preview, then Confirm to execute.</div>
-      {demoMode ? (
-        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 12, border: "1px solid var(--border)", background: "rgba(56,189,248,0.10)", color: "rgba(15,23,42,0.85)", fontSize: 12 }}>
-          Demo mode: BTC Up/Down executed by local signer.
-        </div>
-      ) : null}
       <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, fontFamily: "var(--mono)" }}>
         wallet: {shortAddr ? shortAddr : mounted ? "not connected" : "…"}
       </div>
@@ -195,8 +229,30 @@ export function SimulationLab() {
         </div>
       </div>
 
-      {(simError || autoError) && <div style={{ marginTop: 10, color: "var(--critical)", fontSize: 12 }}>{(simError ?? autoError)?.message}</div>}
+      {(simError || autoError) && (
+        <div style={{ marginTop: 10, color: "var(--text)", fontSize: 12, background: "var(--criticalSoft)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "8px 10px" }}>
+          {(simError ?? autoError)?.message}
+        </div>
+      )}
       {resetMsg ? <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>{resetMsg}</div> : null}
+      {lastRunMeta ? (
+        <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 12, padding: 10, background: "var(--panel2)" }}>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>Last BTC run diagnostics</div>
+          <div style={{ display: "grid", gap: 4, fontSize: 12 }}>
+            <Row label="shouldRun" value={lastRunMeta.shouldRun === undefined ? "—" : lastRunMeta.shouldRun ? "Yes" : "No"} />
+            <Row label="attemptedSet" value={lastRunMeta.attemptedSet ? "Yes" : "No"} />
+            <Row label="attemptedRun" value={lastRunMeta.attemptedRun ? "Yes" : "No"} />
+            <Row label="stage" value={lastRunMeta.stage ?? "—"} />
+            <Row label="setTx" value={lastRunMeta.setTx ?? "—"} />
+            <Row label="runTx" value={lastRunMeta.runTx ?? "—"} />
+            {lastRunMeta.runError ? (
+              <div style={{ color: "var(--text)", background: "var(--criticalSoft)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "8px 10px" }}>
+                runError: {lastRunMeta.runError}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <PreviewModal
         open={modalOpen}
@@ -208,7 +264,6 @@ export function SimulationLab() {
         onConfirm={confirm}
         confirmDisabled={!preview || Boolean(previewErr)}
       >
-        {previewErr ? <div style={{ color: "var(--critical)", fontSize: 12 }}>{previewErr}</div> : null}
         {preview ? (
           <div style={{ display: "grid", gap: 8 }}>
             {scenario === "btc_down" ? (
@@ -220,6 +275,21 @@ export function SimulationLab() {
             ) : (
               <DiscountRows preview={preview} />
             )}
+          </div>
+        ) : null}
+        {runMeta ? (
+          <div style={{ marginTop: 8, display: "grid", gap: 4, fontSize: 12 }}>
+            <Row label="setTx" value={runMeta.setTx ?? "—"} />
+            <Row label="runTx" value={runMeta.runTx ?? "—"} />
+            <Row label="shouldRun" value={runMeta.shouldRun === undefined ? "—" : runMeta.shouldRun ? "Yes" : "No"} />
+            <Row label="attemptedSet" value={runMeta.attemptedSet ? "Yes" : "No"} />
+            <Row label="attemptedRun" value={runMeta.attemptedRun ? "Yes" : "No"} />
+            <Row label="stage" value={runMeta.stage ?? "—"} />
+            {runMeta.runError ? (
+              <div style={{ color: "var(--text)", background: "var(--criticalSoft)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "8px 10px" }}>
+                runError: {runMeta.runError}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </PreviewModal>
@@ -309,7 +379,12 @@ function BtcUpRows({ preview }: { preview: any }) {
       {preview.triggered ? (
         <>
           <Row label="Mint amount (to reserve)" value={`${formatUnitsCeil(preview.mintAmount as bigint, 18, 2)} MUSD`} />
-          <Row label="Signature required" value={(preview.mintAmount as bigint) > 0n ? "Yes" : "No"} />
+          {"maxMintAllowed" in preview ? (
+            <Row label="Max mint allowed (capacity)" value={`${formatUnitsCeil(preview.maxMintAllowed as bigint, 18, 2)} MUSD`} />
+          ) : null}
+          {"cappedByCapacity" in preview && preview.cappedByCapacity ? (
+            <Row label="Note" value="Capped by Mezo borrowing capacity" />
+          ) : null}
         </>
       ) : null}
     </>

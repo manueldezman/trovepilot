@@ -10,7 +10,8 @@ export function useSpendableMusd(user?: Address) {
   return useQuery({
     queryKey: ["spendableMusd", user],
     enabled: Boolean(user),
-    refetchInterval: 12_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       if (!user) throw new Error("Missing user");
       const bal = (await publicClient.readContract({
@@ -23,4 +24,3 @@ export function useSpendableMusd(user?: Address) {
     }
   });
 }
-
