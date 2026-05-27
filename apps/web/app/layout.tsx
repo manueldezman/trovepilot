@@ -1,8 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
-import { SidebarNav } from "@/components/SidebarNav";
-import { TopBar } from "@/components/TopBar";
+import { AppShell } from "@/components/AppShell";
 import { ToastViewport } from "@/components/ToastViewport";
 import { GeistSans } from "geist/font/sans";
 
@@ -16,13 +15,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className={GeistSans.variable}>
         <Providers>
-          <div className="appFrame">
-            <SidebarNav />
-            <div className="appMain">
-              <TopBar />
-              <div className="appContent">{children}</div>
-            </div>
-          </div>
+          <AppShell>{children}</AppShell>
           <ToastViewport />
         </Providers>
       </body>

@@ -116,12 +116,59 @@ p {
   border-radius: 22px;
   overflow: hidden;
   box-shadow: var(--shadow2);
+  position: relative;
 }
 
 .appMain {
   min-width: 0;
   display: grid;
   grid-template-rows: auto 1fr;
+}
+
+.sidebarDesktop {
+  display: block;
+}
+
+.sidebarBase {
+  width: 100%;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 40;
+}
+
+.drawerBackdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawerPanel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(80vw, 360px);
+  height: 100dvh;
+  z-index: 45;
+  transform: translateX(-100%);
+  transition: transform 220ms ease;
+}
+
+.drawerPanel.open {
+  transform: translateX(0);
+}
+
+.menuBtn {
+  display: none;
+}
+
+.mobileBrand {
+  display: none;
 }
 
 .appContent {
@@ -232,8 +279,29 @@ p {
     grid-template-columns: 1fr;
   }
 
+  .sidebarDesktop {
+    display: none;
+  }
+
   .topBar {
     flex-wrap: wrap;
+  }
+
+  .menuBtn {
+    display: grid;
+  }
+
+  .mobileBrand {
+    display: block;
+    min-width: 120px;
+  }
+
+  .searchWrap {
+    width: min(420px, 48vw);
+  }
+
+  .drawerPanel .sidebarBase {
+    border-right: 1px solid var(--border);
   }
 }
 
