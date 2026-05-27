@@ -174,7 +174,7 @@ export async function POST(req: Request) {
         const setReceipt = await publicClient.waitForTransactionReceipt({ hash: setTx });
         if (setReceipt.status !== "success") {
           runError = "setSimulatedBTCPrice transaction reverted";
-          throw new Error(runError);
+          throw new Error(runError ?? "setSimulatedBTCPrice transaction reverted");
         }
 
         attemptedRun = true;
@@ -225,7 +225,7 @@ export async function POST(req: Request) {
           });
         } catch (e: any) {
           runError = e?.shortMessage || e?.message || "withdrawMUSD simulation failed";
-          throw new Error(runError);
+          throw new Error(runError ?? "withdrawMUSD simulation failed");
         }
 
         runTx = await walletClient.writeContract({
@@ -238,7 +238,7 @@ export async function POST(req: Request) {
         const mintReceipt = await publicClient.waitForTransactionReceipt({ hash: runTx });
         if (mintReceipt.status !== "success") {
           runError = "withdrawMUSD transaction reverted";
-          throw new Error(runError);
+          throw new Error(runError ?? "withdrawMUSD transaction reverted");
         }
 
         const approveTx = await walletClient.writeContract({
@@ -259,7 +259,7 @@ export async function POST(req: Request) {
         const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveTx });
         if (approveReceipt.status !== "success") {
           runError = "approve transaction reverted";
-          throw new Error(runError);
+          throw new Error(runError ?? "approve transaction reverted");
         }
 
         const depositTx = await walletClient.writeContract({

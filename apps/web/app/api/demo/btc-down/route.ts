@@ -177,7 +177,7 @@ export async function POST(req: Request) {
         const setReceipt = await publicClient.waitForTransactionReceipt({ hash: setTx });
         if (setReceipt.status !== "success") {
           runError = "setSimulatedBTCPrice transaction reverted";
-          throw new Error(runError);
+          throw new Error(runError ?? "setSimulatedBTCPrice transaction reverted");
         }
 
         // Production-safe path for demo mode:
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
         const withdrawReceipt = await publicClient.waitForTransactionReceipt({ hash: withdrawTx });
         if (withdrawReceipt.status !== "success") {
           runError = "withdrawReserveMUSD transaction reverted";
-          throw new Error(runError);
+          throw new Error(runError ?? "withdrawReserveMUSD transaction reverted");
         }
 
         const [collNow, debtNow] = (await Promise.all([
@@ -236,7 +236,7 @@ export async function POST(req: Request) {
           });
         } catch (e: any) {
           runError = e?.shortMessage || e?.message || "repayMUSD simulation failed";
-          throw new Error(runError);
+          throw new Error(runError ?? "repayMUSD simulation failed");
         }
         runTx = await walletClient.writeContract({
           address: MEZO.borrowerOperations,
