@@ -212,12 +212,22 @@ contract TrovePilotVaultV5 {
     // ---------------------------
 
     function _allocateIncomingMusd(address user, uint256 musdIn) internal returns (uint256 musdKept, uint256 usdcAdded) {
-        // In V5, "USDC" is a placeholder lane backed by MUSD; store both lanes in MUSD units.
-        musdKept = (musdIn * TARGET_MUSD_BPS) / 10_000;
-        if (musdKept > musdIn) musdKept = musdIn;
+        // Rebalance the TOTAL reserve state toward 60/40 after each inflow.
+        // In V5, "USDC" is a placeholder lane backed by MUSD; both lanes are tracked in MUSD units.
+        uint256 s = musdReserve[user];
+        uint256 o = usdcReserve[user];
+        uint256 newTotal = s + o + musdIn;
+        uint256 targetS = (newTotal * TARGET_MUSD_BPS) / 10_000;
+
+        if (s >= targetS) {
+            musdKept = 0;
+        } else {
+            uint256 needS = targetS - s;
+            musdKept = needS > musdIn ? musdIn : needS;
+        }
         usdcAdded = musdIn - musdKept;
-        musdReserve[user] += musdKept;
-        usdcReserve[user] += usdcAdded;
+        musdReserve[user] = s + musdKept;
+        usdcReserve[user] = o + usdcAdded;
     }
 
     // ---------------------------
@@ -488,8 +498,8 @@ contract TrovePilotVaultV5 {
             return;
         }
         musdReserve[msg.sender] = s - sellMusd;
-        usdcReserve[msg.sender] = usdcReserve[msg.sender] + sellMusd;
         uint256 estUsdcOut = (sellMusd * musdPrice) / ONE;
+        usdcReserve[msg.sender] = usdcReserve[msg.sender] + estUsdcOut;
         emit PremiumRotated(msg.sender, musdPrice, sellMusd, estUsdcOut);
     }
 
@@ -506,9 +516,9 @@ contract TrovePilotVaultV5 {
             emit DiscountRotated(msg.sender, musdPrice, 0, 0);
             return;
         }
-        usdcReserve[msg.sender] = u - spendUsdc;
-        musdReserve[msg.sender] = musdReserve[msg.sender] + spendUsdc;
         uint256 estMusdOut = (spendUsdc * ONE) / musdPrice;
+        usdcReserve[msg.sender] = u - spendUsdc;
+        musdReserve[msg.sender] = musdReserve[msg.sender] + estMusdOut;
         emit DiscountRotated(msg.sender, musdPrice, spendUsdc, estMusdOut);
     }
 
@@ -534,4 +544,3 @@ contract TrovePilotVaultV5 {
         (upper, lower) = ISortedTrovesV5(sortedTroves).findInsertPosition(nicr, approxHint, approxHint);
     }
 }
-
