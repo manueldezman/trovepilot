@@ -2,6 +2,8 @@
 
 Live demo: https://trovepilot-web-vo95.vercel.app/  
 Video demo: https://youtu.be/Aj58RXZ5Bs0  
+[![Watch the demo](https://img.youtube.com/vi/Aj58RXZ5Bs0/hqdefault.jpg)](https://youtu.be/Aj58RXZ5Bs0)
+
 TrovePilot is an automation layer for Mezo borrowers that stabilizes target ICR and coordinates dual-asset reserves (MUSD + USDC accounting) through BTC volatility and MUSD peg changes.
 
 ## Features
