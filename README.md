@@ -6,12 +6,18 @@ TrovePilot is an automation layer for Mezo borrowers that stabilizes target ICR 
 
 ## Features
 
-- Automated ICR stabilization around user-configurable target/band.
-- Dual-lane reserve coordination: Stability Liquidity (MUSD) + Opportunity Liquidity (USDC accounting).
-- BTC Up/Down automation flows with reserve-aware debt and mint actions.
-- Peg premium/discount reserve rotation logic.
-- Vault operations for reserve deposit/withdraw workflows and migration-friendly upgrades.
-- Timeline and dashboard views for reserve state and automation activity.
+It helps a borrower:
+- monitor trove health and reserve state,
+- simulate BTC and MUSD market scenarios,
+- run BTC-up/BTC-down operational actions,
+- rotate reserve liquidity across stability and opportunity lanes.
+
+## Core behavior
+
+- BTC Down scenarios can trigger debt repayment from reserve flow.
+- BTC Up scenarios can mint additional MUSD and route it into reserve.
+- MUSD premium/discount scenarios rotate reserve balances using peg-aware conversion logic.
+- Reserve operations support deposit/withdraw management from the app.
 
 ## Tech Stack
 
