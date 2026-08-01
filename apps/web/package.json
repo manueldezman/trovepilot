@@ -6,16 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "monitor:collateral": "tsx scripts/collateral-listener.ts"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.59.0",
     "@fontsource/ibm-plex-mono": "^5.2.6",
     "@fontsource/inter": "^5.2.6",
+    "@tanstack/react-query": "^5.59.0",
     "geist": "^1.5.1",
     "next": "^14.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tsx": "^4.23.1",
     "viem": "^2.21.0",
     "wagmi": "^2.12.0"
   },

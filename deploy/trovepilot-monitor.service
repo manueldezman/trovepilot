@@ -1,0 +1,23 @@
+[Unit]
+Description=TrovePilot BTC collateral monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trovepilot
+Group=trovepilot
+WorkingDirectory=/opt/trovepilot
+EnvironmentFile=/etc/trovepilot-monitor.env
+RuntimeDirectory=trovepilot
+ExecStart=/usr/bin/flock -n /run/trovepilot/monitor.lock /usr/bin/npm -w apps/web run monitor:collateral
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/trovepilot
+
+[Install]
+WantedBy=multi-user.target
